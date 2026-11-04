@@ -3,7 +3,7 @@ Contributors: priyantanc
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.3.2
+Stable tag: 1.4.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,10 +16,15 @@ Admin staff upload the year's student placement Excel file. The plugin counts of
 Shortcodes:
 
 * `[placement_trend]` – placements over the years.
-* `[placement_year]` – year picker, pie chart, totals and company table.
+* `[placement_year]` – year buttons, stat tiles and a donut chart of offers by company.
 * `[placement_records]` – year-wise student tables (`years="2026,2025"`, `open="none|first|all", default none`).
 
 == Changelog ==
+
+= 1.4.0 =
+* Placement Data Year Wise is now a colourful donut chart: 12 vivid colours with soft gradients, the total in the centre, and a list of companies with offers and share. Hovering a slice or a list row highlights both.
+* Downloads of the donut include the title and the company list, with larger text for reports.
+* Fix: the arrow next to the year buttons is centred on phones; the Ongoing badge stays on one line.
 
 = 1.3.2 =
 * Student tables now all start closed. Use open="first" or open="all" on the shortcode to change that.

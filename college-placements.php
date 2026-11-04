@@ -3,7 +3,7 @@
  * Plugin Name:       College Placements
  * Plugin URI:        https://github.com/Priyantan-C/college-placements
  * Description:       Placement charts and year-wise student placement tables for a college website. Upload the year's placement Excel file and the plugin builds the charts and tables.
- * Version:           1.3.2
+ * Version:           1.4.0
  * Requires at least: 6.0
  * Requires PHP:      8.0
  * Author:            Priyantan-C
@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'CPL_VERSION', '1.3.2' );
+define( 'CPL_VERSION', '1.4.0' );
 define( 'CPL_FILE', __FILE__ );
 define( 'CPL_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CPL_URL', plugin_dir_url( __FILE__ ) );

@@ -11,6 +11,10 @@
 	var CATEGORICAL = ['#1e73be', '#ff5722', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 	var GRADIENT = ['#004287', '#1e73be', '#6250d6', '#d9468f', '#ff5722'];
 	var OTHER = '#aab1bb';
+	/* DONUT: 12 vivid hues, ordered so neighbouring slices always contrast (checked: normal-vision ΔE ≥ 27 between
+	   neighbours; one neighbouring pair sits in the colour-blind warning band, covered by the white gaps between
+	   slices and the labelled list). Past 12 companies the hues repeat in a lighter tint. */
+	var DONUT = ['#1e73be', '#ff5722', '#1baf7a', '#8e44ec', '#eda100', '#e83e8c', '#0097a7', '#e34948', '#7cb342', '#3949ab', '#fb8c00', '#ad1457'];
 	var INK = { primary: '#1d2327', secondary: '#565d66', muted: '#80868e', grid: '#e7e9ec', axis: '#c9cdd2', surface: '#ffffff' };
 	var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -173,8 +177,8 @@
 			animation: forExport || REDUCED ? false : { duration: 700, easing: 'easeOutQuart' },
 			layout: { padding: forExport ? { top: 12, right: 24, bottom: 12, left: 16 } : { top: 4, right: 12, bottom: 4, left: 4 } },
 			plugins: {
-				title: { display: !!forExport, text: title, align: 'start', color: INK.primary, font: { family: f.heading, size: 18, weight: '600' }, padding: { top: 6, bottom: 2 } },
-				subtitle: { display: !!forExport && !!subtitle, text: subtitle, align: 'start', color: INK.secondary, font: { family: f.body, size: 13 }, padding: { bottom: 14 } },
+				title: { display: !!forExport, text: title, align: 'start', color: INK.primary, font: { family: f.heading, size: forExport ? 28 : 18, weight: '600' }, padding: { top: 6, bottom: forExport ? 6 : 2 } },
+				subtitle: { display: !!forExport && !!subtitle, text: subtitle, align: 'start', color: INK.secondary, font: { family: f.body, size: forExport ? 17 : 13 }, padding: { bottom: forExport ? 24 : 14 } },
 				legend: { display: false },
 				tooltip: {
 					backgroundColor: '#1d2327', titleColor: '#fff', bodyColor: '#fff', padding: 10, cornerRadius: 6, boxPadding: 4,
@@ -300,13 +304,15 @@
 
 		var status = el('div', { 'class': 'cpl-year-status', hidden: '' });
 		var tiles = el('div', { 'class': 'cpl-tiles' });
-		var canvasWrap = el('div', { 'class': 'cpl-canvas' });
+		var canvasWrap = el('div', { 'class': 'cpl-donut-canvas' });
 		var canvas = el('canvas', { role: 'img' });
 		canvasWrap.appendChild(canvas);
+		var list = el('ol', { 'class': 'cpl-donut-list' });
+		var donut = el('div', { 'class': 'cpl-donut' }, [canvasWrap, list]);
 		var tableWrap = el('div', { 'class': 'cpl-data-table', hidden: '' });
 		var foot = el('p', { 'class': 'cpl-footnote', hidden: '' });
 		var head = chartHead();
-		var card = el('div', { 'class': 'cpl-card' }, [head.node, canvasWrap, tableWrap, foot]);
+		var card = el('div', { 'class': 'cpl-card' }, [head.node, donut, tableWrap, foot]);
 
 		root.appendChild(toolbar);
 		root.appendChild(status);
@@ -317,6 +323,19 @@
 
 		var chart = null;
 		var buildConfig = null;
+
+		function highlight(i) {
+			Array.prototype.forEach.call(list.children, function (li, k) { li.classList.toggle('is-active', k === i); });
+		}
+		function activate(i) {
+			if (!chart) { return; }
+			var els = i < 0 ? [] : [{ datasetIndex: 0, index: i }];
+			chart.setActiveElements(els);
+			var arc = i < 0 ? null : chart.getDatasetMeta(0).data[i];
+			chart.tooltip.setActiveElements(els, arc ? arc.tooltipPosition() : { x: 0, y: 0 });
+			chart.update();
+			highlight(i);
+		}
 
 		function tile(label, value, extra) {
 			return el('div', { 'class': 'cpl-tile' }, [
@@ -372,66 +391,133 @@
 			head.title.textContent = title;
 			head.sub.textContent = pageSubtitle;
 			canvas.setAttribute('aria-label', title + '. ' + rows.map(function (r) { return r[0] + ' ' + r[1]; }).join(', '));
-			canvasWrap.style.height = Math.max(300, rows.length * 34 + 110) + 'px';
-			var companyRows = rows.filter(function (r) { return !isOthers(r[0]); }).length;
-			var colours = spread(companyRows);
-			var colourAt = function (i) {
-				var r = rows[i];
-				if (!r || isOthers(r[0])) { return null; }
-				var n = 0;
-				for (var j = 0; j < i; j++) { if (!isOthers(rows[j][0])) { n++; } }
-				return colours[n];
+			/* Colours: each company its own vivid hue in the order shown; Others grey, always last. */
+			var fills = [];
+			var n = 0;
+			rows.forEach(function (r) {
+				if (isOthers(r[0])) { fills.push(hexToRgb(OTHER)); return; }
+				var base = hexToRgb(DONUT[n % DONUT.length]);
+				fills.push(n >= DONUT.length ? lighten(base, 0.4) : base);
+				n++;
+			});
+			var share = function (v) { return Math.round(v / total * 100) + '%'; };
+
+			/* One conic gradient for the whole ring: each slice runs from a lighter tint to its full colour.
+			   Angles come from the data, not the animated arcs, so the gradient is right from the first frame. */
+			function ringFill(ctx) {
+				var chart = ctx.chart;
+				var area = chart.chartArea;
+				var i = ctx.dataIndex;
+				if (!area || typeof chart.ctx.createConicGradient !== 'function') { return rgb(fills[i]); }
+				var sig = area.left + ',' + area.top + ',' + area.right + ',' + area.bottom;
+				if (chart.$cplRing && chart.$cplRingSig === sig) { return chart.$cplRing; }
+				var g = chart.ctx.createConicGradient(-Math.PI / 2, (area.left + area.right) / 2, (area.top + area.bottom) / 2);
+				var acc = 0;
+				rows.forEach(function (r, k) {
+					var a = acc / total;
+					acc += r[1];
+					var b = acc / total;
+					var grey = isOthers(r[0]);
+					g.addColorStop(Math.min(1, a + 0.0005), rgb(grey ? fills[k] : lighten(fills[k], 0.28)));
+					g.addColorStop(Math.max(0, b - 0.0005), rgb(fills[k]));
+				});
+				chart.$cplRing = g;
+				chart.$cplRingSig = sig;
+				return g;
+			}
+
+			/* Total in the middle of the ring. */
+			var centrePlugin = {
+				id: 'cplCentre',
+				afterDatasetsDraw: function (chart) {
+					var meta = chart.getDatasetMeta(0);
+					var arc = meta && meta.data[0];
+					if (!arc) { return; }
+					var r = arc.innerRadius;
+					var ctx = chart.ctx;
+					ctx.save();
+					ctx.textAlign = 'center';
+					ctx.textBaseline = 'middle';
+					ctx.fillStyle = INK.primary;
+					ctx.font = '700 ' + Math.round(r * 0.52) + 'px ' + f.body;
+					ctx.fillText(String(total), arc.x, arc.y - r * 0.12);
+					ctx.fillStyle = INK.secondary;
+					ctx.font = '600 ' + Math.max(11, Math.round(r * 0.15)) + 'px ' + f.body;
+					ctx.fillText('offers in ' + y.year, arc.x, arc.y + r * 0.3);
+					ctx.restore();
+				}
 			};
 
-			buildConfig = function (forExport) { return {
-				type: 'bar',
-				data: {
-					labels: rows.map(function (r) { return r[0]; }),
-					datasets: [{
-						label: 'Offers',
-						data: rows.map(function (r) { return r[1]; }),
-						backgroundColor: function (ctx) {
-							var c = colourAt(ctx.dataIndex);
-							return c ? barGradient(ctx, c) : OTHER;
-						},
-						hoverBackgroundColor: function (ctx) {
-							var c = colourAt(ctx.dataIndex);
-							return c ? rgb(c) : '#949ba6';
-						},
-						borderRadius: { topRight: 4, bottomRight: 4 },
-						borderSkipped: 'start',
-						barPercentage: 0.78,
-						categoryPercentage: 0.9,
-						maxBarThickness: 24
-					}]
-				},
-				options: (function () {
-					var o = baseOptions(f, title, subtitle, forExport);
-					o.indexAxis = 'y';
-					o.plugins.cplValues.enabled = true;
-					o.plugins.tooltip.callbacks = {
-						title: function (items) { return rows[items[0].dataIndex][0]; },
-						label: function (item) {
-							var v = item.raw;
-							return ' ' + v + (v === 1 ? ' offer' : ' offers') + ' (' + Math.round(v / total * 100) + '%)';
+			buildConfig = function (forExport) {
+				var o = baseOptions(f, title, subtitle, forExport);
+				o.cutout = '62%';
+				o.layout = { padding: forExport ? { top: 12, right: 32, bottom: 20, left: 32 } : 14 };
+				o.plugins.tooltip.callbacks = {
+					label: function (item) {
+						var v = item.raw;
+						return ' ' + v + (v === 1 ? ' offer' : ' offers') + ' (' + share(v) + ')';
+					},
+					labelColor: function (item) {
+						var c = rgb(fills[item.dataIndex]);
+						return { borderColor: c, backgroundColor: c, borderRadius: 3 };
+					}
+				};
+				if (forExport) {
+					// Downloads carry their own list of companies beside the ring.
+					o.plugins.legend = {
+						display: true, position: 'right', align: 'center',
+						labels: {
+							font: { family: f.body, size: 20, weight: '600' }, color: INK.primary, padding: 16, usePointStyle: true, pointStyle: 'circle', boxWidth: 16, boxHeight: 16,
+							generateLabels: function () {
+								return rows.map(function (r, i) {
+									return { text: r[0] + '   ' + r[1] + '  (' + share(r[1]) + ')', fillStyle: rgb(fills[i]), strokeStyle: rgb(fills[i]), lineWidth: 0, index: i, pointStyle: 'circle' };
+								});
+							}
 						}
 					};
-					var x = axisStyle(f);
-					x.beginAtZero = true;
-					x.grace = '10%';
-					x.ticks.precision = 0;
-					var yAxis = axisStyle(f);
-					yAxis.grid = { display: false };
-					yAxis.ticks.color = INK.primary;
-					yAxis.ticks.font = { family: f.body, size: 13 };
-					yAxis.ticks.callback = function (v) { return truncate(this.getLabelForValue(v), forExport ? 40 : (window.innerWidth < 600 ? 18 : 30)); };
-					o.scales = { x: x, y: yAxis };
-					return o;
-				}()),
-				plugins: [surfacePlugin, valueLabelPlugin]
-			}; };
+				} else {
+					o.onHover = function (evt, els) { highlight(els.length ? els[0].index : -1); };
+				}
+				return {
+					type: 'doughnut',
+					data: {
+						labels: rows.map(function (r) { return r[0]; }),
+						datasets: [{
+							data: rows.map(function (r) { return r[1]; }),
+							backgroundColor: ringFill,
+							hoverBackgroundColor: function (ctx) { return rgb(fills[ctx.dataIndex]); },
+							borderColor: INK.surface,
+							borderWidth: 3,
+							borderRadius: 6,
+							hoverOffset: forExport ? 0 : 12,
+							spacing: 1
+						}]
+					},
+					options: o,
+					plugins: [surfacePlugin, centrePlugin]
+				};
+			};
 			if (chart) { chart.destroy(); }
 			chart = new window.Chart(canvas, buildConfig(false));
+
+			/* The list beside the ring: colour, company, offers, share. Hovering a row lights up its slice. */
+			list.innerHTML = '';
+			rows.forEach(function (r, i) {
+				var c = fills[i];
+				var dot = el('span', { 'class': 'cpl-dot', 'aria-hidden': 'true' });
+				dot.style.background = isOthers(r[0]) ? rgb(c) : 'linear-gradient(135deg, ' + rgb(lighten(c, 0.28)) + ', ' + rgb(c) + ')';
+				var li = el('li', { 'data-index': String(i), tabindex: '0' }, [
+					dot,
+					el('span', { 'class': 'cpl-li-name', text: r[0] }),
+					el('span', { 'class': 'cpl-li-value', text: String(r[1]) }),
+					el('span', { 'class': 'cpl-li-share', text: share(r[1]) })
+				]);
+				li.addEventListener('mouseenter', function () { activate(i); });
+				li.addEventListener('focus', function () { activate(i); });
+				li.addEventListener('mouseleave', function () { activate(-1); });
+				li.addEventListener('blur', function () { activate(-1); });
+				list.appendChild(li);
+			});
 
 			/* Table view */
 			tableWrap.innerHTML = '';
@@ -467,7 +553,7 @@
 			if (!buildConfig) { show(current); }
 			if (buildConfig) {
 				var n = chart ? chart.data.labels.length : 10;
-				exportChart(buildConfig, 1100, Math.max(420, n * 36 + 170), 'placements-' + current.year);
+				exportChart(buildConfig, 1200, Math.max(640, n * 34 + 220), 'placements-' + current.year);
 			}
 		});
 
