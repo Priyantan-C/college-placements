@@ -55,6 +55,7 @@
 .cpl-seg { border-color: transparent; background: transparent; padding: 6px 16px; font-size: 14px; }
 .cpl-actions { display: flex; gap: 6px; }
 .cpl-toolbar-end { justify-content: flex-end; }
+.cpl-toolbar-below { margin: 12px 0 0; }
 .cpl-widget .cpl-strong { font-weight: 700; }
 .cpl-action {
 	display: inline-flex; align-items: center; gap: 6px; appearance: none; border: 1px solid var(--cpl-line); background: var(--cpl-surface);

@@ -593,7 +593,7 @@
 		/* ---- DOM: toolbar, heading, canvas, company chips ---- */
 		var dlBtn = actionButton('Download', ICON_DOWNLOAD);
 		dlBtn.setAttribute('aria-label', 'Download chart as image');
-		var toolbar = el('div', { 'class': 'cpl-toolbar cpl-toolbar-end' }, [el('div', { 'class': 'cpl-actions' }, [dlBtn])]);
+		var toolbar = el('div', { 'class': 'cpl-toolbar cpl-toolbar-end cpl-toolbar-below' }, [el('div', { 'class': 'cpl-actions' }, [dlBtn])]);
 		var canvasWrap = el('div', { 'class': 'cpl-canvas cpl-canvas-trend' });
 		var canvas = el('canvas', { role: 'img' });
 		canvasWrap.appendChild(canvas);
@@ -608,8 +608,8 @@
 		var legend = el('div', { 'class': 'cpl-legend' }, [legendKey, chips, note]);
 		// The numbers behind the chart, for screen readers.
 		var tableWrap = el('div', { 'class': 'screen-reader-text' });
-		root.appendChild(toolbar);
 		root.appendChild(el('div', { 'class': 'cpl-card' }, [head.node, canvasWrap, legend, tableWrap]));
+		root.appendChild(toolbar); // Download sits under the chart
 
 		function chip(k) {
 			var g = groups[k];

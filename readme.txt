@@ -3,7 +3,7 @@ Contributors: priyantanc
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,6 +20,9 @@ Shortcodes:
 * `[placement_records]` – year-wise student tables (`years="2026,2025"`, `open="none|first|all", default none`).
 
 == Changelog ==
+
+= 1.5.1 =
+* The trend chart's Download button now sits below the chart.
 
 = 1.5.0 =
 * Trend chart: 12 companies in colour by default; clickable company chips (all companies, "+ more" to expand) highlight one company across the years with its numbers and a short summary.
