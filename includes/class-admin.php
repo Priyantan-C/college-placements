@@ -310,7 +310,7 @@ class CPL_Admin {
 						<h2>Shortcodes</h2>
 						<p><code>[placement_trend]</code><br>Placements over the years (stacked bars and total lines).</p>
 						<p><code>[placement_year]</code><br>Year picker, pie chart, totals and company table.</p>
-						<p><code>[placement_records]</code><br>Year-wise student tables. Options: <code>years="2026,2025"</code>, <code>open="first"</code> (or <code>all</code> / <code>none</code>).</p>
+						<p><code>[placement_records]</code><br>Year-wise student tables. Options: <code>years="2026,2025"</code>, <code>open="first"</code> or <code>open="all"</code> (all closed by default).</p>
 					</div>
 				</div>
 			</div>

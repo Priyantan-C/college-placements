@@ -56,7 +56,7 @@ class CPL_Shortcodes {
 	public static function records( $atts ) {
 		$atts = shortcode_atts( array(
 			'years' => '',
-			'open'  => 'first',
+			'open'  => 'none',
 		), $atts, 'placement_records' );
 		wp_enqueue_style( 'cpl' );
 		wp_enqueue_script( 'cpl-records' );

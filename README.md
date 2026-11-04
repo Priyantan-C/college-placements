@@ -26,7 +26,7 @@ The charts and tables update immediately.
 |---|---|
 | `[placement_trend]` | Placements over the years: offers stacked by company (top 8 recruiters + the rest), with Total offers and Students appeared lines |
 | `[placement_year]` | Year pills, stat tiles and ranked company bars (`year="2026"` to start on a given year) |
-| `[placement_records]` | Year-wise student tables with search and department filters (`years="2026,2025"`, `open="first"`, `"all"` or `"none"`) |
+| `[placement_records]` | Year-wise student tables with search and department filters (`years="2026,2025"`, `open="none"` (default), `"first"` or `"all"`) |
 
 `[placement_trend]` and `[placement_year]` also accept `title="…"`. Both charts have **Download** (PNG for reports) and **Table** buttons.
 

@@ -3,7 +3,7 @@ Contributors: priyantanc
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.3.1
+Stable tag: 1.3.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,9 +17,12 @@ Shortcodes:
 
 * `[placement_trend]` – placements over the years.
 * `[placement_year]` – year picker, pie chart, totals and company table.
-* `[placement_records]` – year-wise student tables (`years="2026,2025"`, `open="first|all|none"`).
+* `[placement_records]` – year-wise student tables (`years="2026,2025"`, `open="none|first|all", default none`).
 
 == Changelog ==
+
+= 1.3.2 =
+* Student tables now all start closed. Use open="first" or open="all" on the shortcode to change that.
 
 = 1.3.1 =
 * Chart titles are now page headings: they wrap on phones and use the theme's heading font. Downloads still include the title, drawn at desktop size even when saved from a phone.
