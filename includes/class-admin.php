@@ -61,6 +61,9 @@ class CPL_Admin {
 				<tr><th><label for="records_heading">Student table heading</label></th>
 					<td><input type="text" id="records_heading" name="records_heading" value="<?php echo esc_attr( $s['records_heading'] ); ?>" class="large-text">
 					<p class="description"><code>{year}</code> is replaced by the year.</p></td></tr>
+				<tr><th><label for="dept_order">Department order</label></th>
+					<td><input type="text" id="dept_order" name="dept_order" value="<?php echo esc_attr( $s['dept_order'] ); ?>" class="large-text" placeholder="e.g. CSE, AIML, EE, ECE, IT">
+					<p class="description">Department codes as they appear in the student lists, separated by commas. The department filter buttons and the rows of each student table follow this order. Leave empty for alphabetical buttons and the order of the uploaded file.</p></td></tr>
 			</table>
 			<p class="description">Leave a box empty to go back to the default. A shortcode’s own <code>title="…"</code> overrides these.</p>
 			<?php submit_button( 'Save settings' ); ?>
@@ -359,8 +362,14 @@ class CPL_Admin {
 					<td><input type="text" id="highest" name="highest_pkg" value="<?php echo esc_attr( $y['highest_pkg'] ); ?>" class="regular-text" placeholder="e.g. 11.1 LPA"></td></tr>
 				<tr><th><label for="avg">Average package</label></th>
 					<td><input type="text" id="avg" name="avg_pkg" value="<?php echo esc_attr( $y['avg_pkg'] ); ?>" class="regular-text" placeholder="e.g. 6.12 LPA"></td></tr>
+				<tr><th>Ongoing</th>
+					<td><label><input type="checkbox" name="ongoing" value="1" <?php checked( $y['ongoing'] ); ?>> Placements for this year are still being added</label>
+					<p class="description">Shows an <strong>Ongoing</strong> label on this year’s chart and student table, with the date the student table was last updated<?php
+					$upd = CPL_Data::updated_label( $y );
+					echo $upd ? ' (currently ' . esc_html( $upd ) . ')' : '';
+					?>. The date changes by itself whenever a new student list is saved.</p></td></tr>
 				<tr><th><label for="records_note">Note above the student table</label></th>
-					<td><input type="text" id="records_note" name="records_note" value="<?php echo esc_attr( $y['records_note'] ); ?>" class="large-text" placeholder="e.g. * On-going Data, Updated till 3rd November 2026"></td></tr>
+					<td><input type="text" id="records_note" name="records_note" value="<?php echo esc_attr( $y['records_note'] ); ?>" class="large-text" placeholder="Optional"></td></tr>
 				<tr><th><label for="footnote">Line under the company table</label></th>
 					<td><input type="text" id="footnote" name="footnote" value="<?php echo esc_attr( $y['footnote'] ); ?>" class="large-text"><p class="description">Optional. Shown as the last row of the company table in the year chart.</p></td></tr>
 			</table>
@@ -487,6 +496,7 @@ class CPL_Admin {
 			'highest_pkg'       => sanitize_text_field( self::post( 'highest_pkg' ) ),
 			'avg_pkg'           => sanitize_text_field( self::post( 'avg_pkg' ) ),
 			'records_note'      => sanitize_text_field( self::post( 'records_note' ) ),
+			'ongoing'           => self::post( 'ongoing' ) ? 1 : 0,
 			'footnote'          => sanitize_text_field( self::post( 'footnote' ) ),
 			'chart_source'      => $source,
 			'layout'            => array( 'order' => $order, 'others' => $others ),
@@ -539,8 +549,9 @@ class CPL_Admin {
 						<p class="description">The year the placements count towards (the list titled “Placement Record 2025-26” is 2026).</p></td></tr>
 					<tr><th><label for="file">Excel file (.xlsx)</label></th>
 						<td><input type="file" id="file" name="file" accept=".xlsx" required></td></tr>
-					<tr><th><label for="note">Note above the table</label></th>
-						<td><input type="text" id="note" name="records_note" class="large-text" value="<?php echo esc_attr( $existing ? $existing['records_note'] : '' ); ?>" placeholder="e.g. * On-going Data, Updated till 3rd November 2026"></td></tr>
+					<tr><th>Ongoing</th>
+						<td><label><input type="checkbox" name="ongoing" value="1" <?php checked( $existing ? $existing['ongoing'] : $year >= (int) gmdate( 'Y' ) ); ?>> Placements for this year are still being added</label>
+						<p class="description">Shows an <strong>Ongoing</strong> label with today’s date as “last updated”. Untick it once the year’s list is final.</p></td></tr>
 				</table>
 				<?php submit_button( 'Read file and preview' ); ?>
 				</form>
@@ -583,7 +594,7 @@ class CPL_Admin {
 			'user'     => get_current_user_id(),
 			'year'     => $year,
 			'file'     => sanitize_file_name( $file['name'] ),
-			'note'     => sanitize_text_field( self::post( 'records_note' ) ),
+			'ongoing'  => self::post( 'ongoing' ) ? 1 : 0,
 			'parsed'   => $parsed,
 		), HOUR_IN_SECONDS );
 		self::redirect( self::url( 'upload', array( 'token' => $token ) ) );
@@ -760,9 +771,7 @@ class CPL_Admin {
 		self::save_name_matches( CPL_Data::get_aliases() );
 		CPL_Data::ensure_year( $year );
 		CPL_Data::replace_records( $year, $data['parsed']['rows'] );
-		if ( '' !== $data['note'] ) {
-			CPL_Data::update_year( $year, array( 'records_note' => $data['note'] ) );
-		}
+		CPL_Data::update_year( $year, array( 'ongoing' => ! empty( $data['ongoing'] ) ? 1 : 0 ) );
 		delete_transient( 'cpl_upload_' . $token );
 
 		self::flash( sprintf( 'Saved %d rows for %d. Now check the figures and choose which companies are shown separately.', count( $data['parsed']['rows'] ), $year ) );
@@ -962,7 +971,9 @@ class CPL_Admin {
 			CPL_Data::ensure_year( $year, $source );
 			CPL_Data::replace_records( $year, $table['rows'] );
 			$y = CPL_Data::get_year( $year );
-			if ( '' !== $table['note'] && '' === $y['records_note'] ) {
+			if ( preg_match( '/on-?\s?going/i', $table['note'] ) ) {
+				CPL_Data::update_year( $year, array( 'ongoing' => 1 ) );
+			} elseif ( '' !== $table['note'] && '' === $y['records_note'] ) {
 				CPL_Data::update_year( $year, array( 'records_note' => $table['note'] ) );
 			}
 			$done[ $year ] = count( $table['rows'] );

@@ -32,13 +32,11 @@ class CPL_Shortcodes {
 	public static function trend( $atts ) {
 		$atts = shortcode_atts( array(
 			'title' => CPL_Settings::get( 'trend_title' ),
-			'view'  => 'totals',
 		), $atts, 'placement_trend' );
 		self::enqueue_charts();
 		return sprintf(
-			'<div class="cpl-widget cpl-trend" data-title="%s" data-view="%s"></div>',
-			esc_attr( CPL_Settings::format( $atts['title'] ) ),
-			esc_attr( 'companies' === $atts['view'] ? 'companies' : 'totals' )
+			'<div class="cpl-widget cpl-trend" data-title="%s"></div>',
+			esc_attr( CPL_Settings::format( $atts['title'] ) )
 		);
 	}
 
@@ -76,8 +74,9 @@ class CPL_Shortcodes {
 			return '';
 		}
 
-		$aliases = CPL_Data::get_aliases();
-		$blocks  = array();
+		$aliases   = CPL_Data::get_aliases();
+		$dept_rank = array_flip( CPL_Settings::dept_order() );
+		$blocks    = array();
 		$depts   = array();
 		foreach ( $years as $y ) {
 			$records = CPL_Data::get_records( $y['year'] );
@@ -86,10 +85,22 @@ class CPL_Shortcodes {
 					$depts[ strtoupper( $r['dept'] ) ] = true;
 				}
 			}
-			$blocks[] = array( $y, $records, count( CPL_Data::company_counts( $records, $aliases ) ) );
+			$companies = count( CPL_Data::company_counts( $records, $aliases ) );
+			if ( $dept_rank ) {
+				// Group rows by department in the college's order; keep the file's order within a department.
+				foreach ( $records as $n => &$r ) {
+					$r['_pos'] = $n;
+				}
+				unset( $r );
+				usort( $records, function ( $a, $b ) use ( $dept_rank ) {
+					$ra = $dept_rank[ strtoupper( $a['dept'] ) ] ?? PHP_INT_MAX;
+					$rb = $dept_rank[ strtoupper( $b['dept'] ) ] ?? PHP_INT_MAX;
+					return $ra === $rb ? $a['_pos'] <=> $b['_pos'] : $ra <=> $rb;
+				} );
+			}
+			$blocks[] = array( $y, $records, $companies );
 		}
-		$depts = array_keys( $depts );
-		sort( $depts );
+		$depts = CPL_Settings::sort_depts( array_keys( $depts ) );
 		$uid = 'cpl-rec-' . wp_rand( 1000, 9999 );
 
 		ob_start();
@@ -118,6 +129,11 @@ class CPL_Shortcodes {
 				<details class="cpl-acc" data-year="<?php echo esc_attr( $y['year'] ); ?>" <?php echo $open ? 'open' : ''; ?>>
 					<summary>
 						<span class="cpl-acc-title"><?php echo esc_html( CPL_Settings::format( CPL_Settings::get( 'records_heading' ), $y['year'] ) ); ?></span>
+						<?php if ( $y['ongoing'] ) :
+							$upd = CPL_Data::updated_label( $y );
+							?>
+							<span class="cpl-live"><span class="cpl-live-dot" aria-hidden="true"></span>Ongoing<?php echo $upd ? '<span class="cpl-live-date"> · Updated ' . esc_html( $upd ) . '</span>' : ''; ?></span>
+						<?php endif; ?>
 						<span class="cpl-acc-meta" data-total="<?php echo esc_attr( count( $records ) ); ?>"><?php echo esc_html( sprintf( '%d offers · %d companies', count( $records ), $companies ) ); ?></span>
 						<svg class="cpl-acc-chevron" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M5.5 7.5 10 12l4.5-4.5 1 1L10 14 4.5 8.5z"/></svg>
 					</summary>
@@ -135,7 +151,7 @@ class CPL_Shortcodes {
 								$company = CPL_Data::resolve( $r['org'], $aliases, $seen );
 								?>
 								<tr data-dept="<?php echo esc_attr( strtoupper( $r['dept'] ) ); ?>" data-company="<?php echo esc_attr( $company !== $r['org'] ? $company : '' ); ?>">
-									<td data-label="Sl No" class="cpl-num"><?php echo esc_html( '' !== $r['sl'] ? $r['sl'] : $n + 1 ); ?></td>
+									<td data-label="Sl No" class="cpl-num"><?php echo esc_html( $dept_rank || '' === $r['sl'] ? $n + 1 : $r['sl'] ); ?></td>
 									<td data-label="Dept"><span class="cpl-dept"><?php echo esc_html( $r['dept'] ); ?></span></td>
 									<td data-label="Name" class="cpl-name"><?php echo esc_html( $r['name'] ); ?></td>
 									<td data-label="U R N" class="cpl-id"><?php echo esc_html( $r['urn'] ); ?></td>

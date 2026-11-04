@@ -54,6 +54,15 @@ class CPL_Data {
 		return ( isset( $map['name'] ) && isset( $map['org'] ) ) ? $map : array();
 	}
 
+	/** "4 November 2026" style date (site's date format) for when a year's student table last changed. */
+	public static function updated_label( array $year_row ) {
+		if ( empty( $year_row['records_updated'] ) ) {
+			return '';
+		}
+		$ts = strtotime( get_gmt_from_date( $year_row['records_updated'] ) . ' UTC' );
+		return $ts ? wp_date( get_option( 'date_format' ) ?: 'j F Y', $ts ) : '';
+	}
+
 	public static function flush_cache() {
 		delete_transient( self::CACHE_KEY );
 	}
@@ -142,6 +151,8 @@ class CPL_Data {
 		unset( $row['featured'] );
 		$row['footnote']          = (string) $row['footnote'];
 		$row['records_note']      = (string) $row['records_note'];
+		$row['ongoing']           = ! empty( $row['ongoing'] );
+		$row['records_updated']   = $row['records_updated'] ?? null;
 		return $row;
 	}
 
@@ -164,7 +175,7 @@ class CPL_Data {
 
 	public static function update_year( $year, array $fields ) {
 		global $wpdb;
-		$allowed = array( 'students_appeared', 'highest_pkg', 'avg_pkg', 'chart_source', 'footnote', 'records_note' );
+		$allowed = array( 'students_appeared', 'highest_pkg', 'avg_pkg', 'chart_source', 'footnote', 'records_note', 'ongoing', 'records_updated' );
 		$data    = array_intersect_key( $fields, array_flip( $allowed ) );
 		if ( isset( $fields['layout'] ) && is_array( $fields['layout'] ) ) {
 			// Stored in the "featured" column: company display order, and which companies go into Others.
@@ -257,6 +268,7 @@ class CPL_Data {
 			) );
 		}
 		$wpdb->query( 'COMMIT' );
+		$wpdb->update( CPL_DB::table( 'years' ), array( 'records_updated' => current_time( 'mysql' ) ), array( 'year' => (int) $year ) );
 		self::flush_cache();
 	}
 
@@ -386,6 +398,8 @@ class CPL_Data {
 				'highest'    => $y['highest_pkg'],
 				'avg'        => $y['avg_pkg'],
 				'footnote'   => $y['footnote'],
+				'ongoing'    => $y['ongoing'],
+				'updated'    => $y['ongoing'] ? self::updated_label( $y ) : '',
 				'recruiters' => $recruiters,
 				'rows'       => $rows,
 			);

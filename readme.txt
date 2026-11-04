@@ -3,7 +3,7 @@ Contributors: priyantanc
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.2.2
+Stable tag: 1.3.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,6 +20,12 @@ Shortcodes:
 * `[placement_records]` – year-wise student tables (`years="2026,2025"`, `open="first|all|none"`).
 
 == Changelog ==
+
+= 1.3.0 =
+* Trend chart is now one combined chart: offers stacked by company with a Total offers line and a Students appeared line (the view toggle is gone).
+* New Ongoing switch per year (year settings and upload screen). It shows a prominent Ongoing badge with the date the student table was last updated, on the student table and the year chart (including downloads). The date updates by itself on every new upload.
+* Existing "On-going Data, Updated till …" notes are converted to the switch, keeping their date.
+* New Department order setting: department filter buttons and the rows of each student table follow it.
 
 = 1.2.2 =
 * Removed the change-vs-last-year note from the Total offers tile.

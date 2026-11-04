@@ -5,7 +5,7 @@ WordPress plugin that draws placement charts and year-wise student placement tab
 ## Getting started on a new site
 
 1. Install and activate the plugin.
-2. **Placements → Settings**: set the college name. Chart titles use it, e.g. "Placements in {college} over the years".
+2. **Placements → Settings**: set the college name (chart titles use it, e.g. "Placements in {college} over the years") and the department order (e.g. `CSE, AIML, EE, ECE, IT`).
 3. Load data in any of these ways:
    * **Upload student list**: one year's list of offers (see below).
    * **Import summary workbook**: past years with company totals only, one sheet per year.
@@ -16,7 +16,7 @@ WordPress plugin that draws placement charts and year-wise student placement tab
 
 1. **Placements → Upload student list**: pick the year and upload the Excel file. It needs a header row with at least `Name` and `Org` (or Organization / Company). `Sl No`, `Dept` and `U R N` (or University Roll Number) are used when present. A title row above the header is fine.
 2. Check the preview. Change the "Counts as company" box to merge spellings (e.g. `CTS` → `Cognizant`). Matches are remembered for later uploads.
-3. Save. On the year's page, fill in students appeared, highest and average package. In the company list, drag rows (or use the arrows) to set the order, and untick companies to group them into **Others**, which always comes last.
+3. Save. Tick **Ongoing** while the year's list is still growing: the site shows an Ongoing badge with the date of the latest upload. On the year's page, fill in students appeared, highest and average package. In the company list, drag rows (or use the arrows) to set the order, and untick companies to group them into **Others**, which always comes last.
 
 The charts and tables update immediately.
 
@@ -24,7 +24,7 @@ The charts and tables update immediately.
 
 | Shortcode | What it shows |
 |---|---|
-| `[placement_trend]` | Placements over the years: total offers per year with the students-appeared line, or a "By company" view (`view="companies"` to start there) |
+| `[placement_trend]` | Placements over the years: offers stacked by company (top 8 recruiters + the rest), with Total offers and Students appeared lines |
 | `[placement_year]` | Year pills, stat tiles and ranked company bars (`year="2026"` to start on a given year) |
 | `[placement_records]` | Year-wise student tables with search and department filters (`years="2026,2025"`, `open="first"`, `"all"` or `"none"`) |
 

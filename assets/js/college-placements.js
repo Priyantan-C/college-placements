@@ -136,6 +136,33 @@
 		}
 	};
 
+	/* Value labels above chosen points of the first line (Total offers): its highest year and the latest year. */
+	function lineLabelPlugin(maxIndex, lastIndex, f) {
+		return {
+			id: 'cplLineValues',
+			afterDatasetsDraw: function (chart) {
+				var meta = chart.getDatasetMeta(0);
+				if (!meta || meta.hidden) { return; }
+				var ctx = chart.ctx;
+				[maxIndex, lastIndex].filter(function (v, i, a) { return a.indexOf(v) === i; }).forEach(function (i) {
+					var pt = meta.data[i];
+					var v = chart.data.datasets[0].data[i];
+					if (!pt || v == null) { return; }
+					ctx.save();
+					ctx.font = '700 13px ' + f.body;
+					ctx.textAlign = 'center';
+					ctx.textBaseline = 'bottom';
+					ctx.lineWidth = 4;
+					ctx.strokeStyle = '#fff';
+					ctx.strokeText(String(v), pt.x, pt.y - 9);
+					ctx.fillStyle = INK.primary;
+					ctx.fillText(String(v), pt.x, pt.y - 9);
+					ctx.restore();
+				});
+			}
+		};
+	}
+
 	function baseOptions(f, title, subtitle) {
 		return {
 			responsive: true,
@@ -242,6 +269,7 @@
 		dlBtn.setAttribute('aria-label', 'Download chart as image');
 		var toolbar = el('div', { 'class': 'cpl-toolbar' }, [pills, el('div', { 'class': 'cpl-actions' }, [tableBtn, dlBtn])]);
 
+		var status = el('div', { 'class': 'cpl-year-status', hidden: '' });
 		var tiles = el('div', { 'class': 'cpl-tiles' });
 		var canvasWrap = el('div', { 'class': 'cpl-canvas' });
 		var canvas = el('canvas', { role: 'img' });
@@ -251,6 +279,7 @@
 		var card = el('div', { 'class': 'cpl-card' }, [canvasWrap, tableWrap, foot]);
 
 		root.appendChild(toolbar);
+		root.appendChild(status);
 		root.appendChild(tiles);
 		root.appendChild(card);
 		tableToggle(tableBtn, tableWrap);
@@ -281,6 +310,15 @@
 				earlier.parentNode.classList.toggle('is-active', isOld);
 			}
 
+			/* Ongoing badge */
+			status.innerHTML = '';
+			status.hidden = !y.ongoing;
+			if (y.ongoing) {
+				var badge = el('span', { 'class': 'cpl-live' }, [el('span', { 'class': 'cpl-live-dot', 'aria-hidden': 'true' }), 'Ongoing']);
+				if (y.updated) { badge.appendChild(el('span', { 'class': 'cpl-live-date', text: ' · Updated ' + y.updated })); }
+				status.appendChild(badge);
+			}
+
 			/* Tiles */
 			tiles.innerHTML = '';
 			tiles.appendChild(tile('Total offers', total));
@@ -291,6 +329,7 @@
 
 			/* Chart */
 			var subtitle = [data.college, total + ' offers' + (y.appeared ? ' · ' + y.appeared + ' students eligible' : '')].filter(Boolean).join(' · ');
+			if (y.ongoing) { subtitle += ' · Ongoing' + (y.updated ? ', updated ' + y.updated : ''); }
 			var title = titleBase + ' – ' + y.year;
 			canvas.setAttribute('aria-label', title + '. ' + rows.map(function (r) { return r[0] + ' ' + r[1]; }).join(', '));
 			canvasWrap.style.height = Math.max(300, rows.length * 34 + 110) + 'px';
@@ -398,12 +437,10 @@
 		if (!years.length) { return; }
 		var f = fonts(root);
 		var title = root.getAttribute('data-title') || 'Placements over the years';
-		var view = root.getAttribute('data-view') === 'companies' ? 'companies' : 'totals';
 		var labels = years.map(function (y) { return String(y.year); });
 		var totals = years.map(function (y) { return sum(y.rows); });
 		var appeared = years.map(function (y) { return y.appeared || null; });
 		var span = years[0].year + '–' + years[years.length - 1].year;
-		var yearColours = spread(years.length);
 
 		/* Top 8 companies across all years keep a fixed colour; the rest share grey. */
 		var groups = {};
@@ -426,15 +463,10 @@
 			return t;
 		});
 
-		var seg = el('div', { 'class': 'cpl-segmented', role: 'group', 'aria-label': 'Chart view' });
-		var btnTotals = el('button', { type: 'button', 'class': 'cpl-seg', text: 'Total offers' });
-		var btnCompanies = el('button', { type: 'button', 'class': 'cpl-seg', text: 'By company' });
-		seg.appendChild(btnTotals);
-		seg.appendChild(btnCompanies);
 		var tableBtn = actionButton('Table', ICON_TABLE);
 		var dlBtn = actionButton('Download', ICON_DOWNLOAD);
 		dlBtn.setAttribute('aria-label', 'Download chart as image');
-		var toolbar = el('div', { 'class': 'cpl-toolbar' }, [seg, el('div', { 'class': 'cpl-actions' }, [tableBtn, dlBtn])]);
+		var toolbar = el('div', { 'class': 'cpl-toolbar cpl-toolbar-end' }, [el('div', { 'class': 'cpl-actions' }, [tableBtn, dlBtn])]);
 		var canvasWrap = el('div', { 'class': 'cpl-canvas cpl-canvas-trend' });
 		var canvas = el('canvas', { role: 'img' });
 		canvasWrap.appendChild(canvas);
@@ -445,116 +477,97 @@
 
 		var chart = null;
 		var maxIndex = totals.indexOf(Math.max.apply(Math, totals));
+		var LINE_TOTAL = '#1d2327';
+		var LINE_APPEARED = '#565d66';
 
-		function legendOptions() {
-			return {
-				display: true, position: 'top', align: 'start',
-				labels: { color: INK.secondary, font: { family: f.body, size: 12 }, boxWidth: 12, boxHeight: 12, useBorderRadius: true, borderRadius: 3, padding: 14 }
-			};
-		}
-
+		/* One chart: offers stacked by company (top recruiters + the rest), with a Total offers line
+		   and a Students appeared line on the same axis (both are counts of students). */
 		function draw() {
-			btnTotals.classList.toggle('is-active', view === 'totals');
-			btnCompanies.classList.toggle('is-active', view === 'companies');
-			btnTotals.setAttribute('aria-pressed', view === 'totals' ? 'true' : 'false');
-			btnCompanies.setAttribute('aria-pressed', view === 'companies' ? 'true' : 'false');
-
-			var o = baseOptions(f, title, view === 'totals'
-				? span + ' · total offers and students appeared each year'
-				: span + ' · offers by company (top ' + top.length + ' recruiters, rest grouped)');
+			var o = baseOptions(f, title, span + ' · offers by company, with total offers and students appeared');
 			var x = axisStyle(f);
 			x.grid = { display: false };
-			x.stacked = view === 'companies';
+			x.stacked = true;
 			var yAxis = axisStyle(f);
 			yAxis.beginAtZero = true;
-			yAxis.grace = '8%';
+			yAxis.grace = '10%';
 			yAxis.ticks.precision = 0;
-			yAxis.stacked = view === 'companies';
+			yAxis.stacked = true;
 			yAxis.border = { display: false };
 			o.scales = { x: x, y: yAxis };
 			o.interaction = { mode: 'index', intersect: false };
-			o.plugins.legend = legendOptions();
-
-			var datasets;
-			if (view === 'totals') {
-				o.plugins.cplValues.enabled = true;
-				o.plugins.cplValues.only = function (i) { return i === maxIndex || i === totals.length - 1; };
-				o.plugins.legend.labels.generateLabels = function (c) {
-					return c.data.datasets.map(function (ds, i) {
-						return {
-							text: ds.label, datasetIndex: i, hidden: !c.isDatasetVisible(i), lineWidth: 0,
-							fillStyle: ds.type === 'line' ? '#2b2f36' : '#6250d6', strokeStyle: 'transparent',
-							fontColor: INK.secondary, borderRadius: 3
-						};
-					});
-				};
-				datasets = [
-					{
-						type: 'line', label: 'Students appeared', data: appeared, order: 0,
-						borderColor: '#2b2f36', backgroundColor: '#2b2f36', borderWidth: 2, tension: 0.3,
-						pointRadius: 4, pointHoverRadius: 6, pointBorderColor: '#fff', pointBorderWidth: 2, spanGaps: true
+			o.plugins.legend = {
+				display: true, position: 'top', align: 'start',
+				labels: {
+					color: INK.secondary, font: { family: f.body, size: 12 }, boxWidth: 12, boxHeight: 12, padding: 14,
+					generateLabels: function (c) {
+						return c.data.datasets.map(function (ds, i) {
+							var line = ds.type === 'line';
+							return {
+								text: ds.label, datasetIndex: i, hidden: !c.isDatasetVisible(i),
+								fillStyle: line ? '#fff' : ds.backgroundColor, strokeStyle: line ? ds.borderColor : 'transparent',
+								lineWidth: line ? 2 : 0, lineDash: ds.borderDash || [], pointStyle: line ? (ds.pointStyle || 'circle') : 'rectRounded',
+								fontColor: INK.secondary
+							};
+						});
 					},
-					{
-						type: 'bar', label: 'Total offers', data: totals, order: 1,
-						backgroundColor: function (ctx) { return barGradient(ctx, yearColours[ctx.dataIndex]); },
-						hoverBackgroundColor: function (ctx) { return rgb(yearColours[ctx.dataIndex]); },
-						borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start',
-						barPercentage: 0.72, categoryPercentage: 0.9, maxBarThickness: 40
-					}
-				];
-			} else {
-				datasets = top.map(function (k, i) {
-					return {
-						type: 'bar', label: groups[k].name, data: groups[k].data, backgroundColor: CATEGORICAL[i],
-						borderColor: INK.surface, borderWidth: { top: 1, bottom: 1, left: 0, right: 0 }, borderSkipped: false,
-						barPercentage: 0.72, categoryPercentage: 0.9, maxBarThickness: 40
-					};
-				});
-				if (otherData.some(function (v) { return v > 0; })) {
-					datasets.push({
-						type: 'bar', label: 'Other companies', data: otherData, backgroundColor: OTHER,
-						borderColor: INK.surface, borderWidth: { top: 1, bottom: 1, left: 0, right: 0 }, borderSkipped: false,
-						barPercentage: 0.72, categoryPercentage: 0.9, maxBarThickness: 40
-					});
+					usePointStyle: true, pointStyleWidth: 14
 				}
-				o.plugins.tooltip.filter = function (item) { return item.raw > 0; };
-				o.plugins.tooltip.itemSort = function (a, b) { return b.raw - a.raw; };
-				o.plugins.tooltip.callbacks = {
-					footer: function (items) {
-						return 'Total: ' + totals[items[0].dataIndex];
-					}
-				};
+			};
+			o.plugins.tooltip.filter = function (item) { return item.raw > 0; };
+			o.plugins.tooltip.itemSort = function (a, b) {
+				var al = a.dataset.type === 'line', bl = b.dataset.type === 'line';
+				if (al !== bl) { return al ? -1 : 1; }
+				return b.raw - a.raw;
+			};
+
+			var stackStyle = {
+				type: 'bar', stack: 'offers', borderColor: INK.surface, borderWidth: { top: 1, bottom: 1, left: 0, right: 0 },
+				borderSkipped: false, barPercentage: 0.72, categoryPercentage: 0.9, maxBarThickness: 40, order: 2
+			};
+			var datasets = [
+				{
+					type: 'line', label: 'Total offers', data: totals, stack: 'total', order: 0,
+					borderColor: LINE_TOTAL, backgroundColor: LINE_TOTAL, borderWidth: 2.5, cubicInterpolationMode: 'monotone',
+					pointRadius: 4, pointHoverRadius: 6, pointBorderColor: '#fff', pointBorderWidth: 2
+				},
+				{
+					type: 'line', label: 'Students appeared', data: appeared, stack: 'appeared', order: 1,
+					borderColor: LINE_APPEARED, backgroundColor: LINE_APPEARED, borderWidth: 2, borderDash: [6, 4], cubicInterpolationMode: 'monotone',
+					pointStyle: 'rectRot', pointRadius: 5, pointHoverRadius: 7, pointBorderColor: '#fff', pointBorderWidth: 2, spanGaps: true
+				}
+			];
+			top.forEach(function (k, i) {
+				datasets.push(Object.assign({ label: groups[k].name, data: groups[k].data, backgroundColor: CATEGORICAL[i] }, stackStyle));
+			});
+			if (otherData.some(function (v) { return v > 0; })) {
+				datasets.push(Object.assign({ label: 'Other companies', data: otherData, backgroundColor: OTHER }, stackStyle));
 			}
 
-			canvas.setAttribute('aria-label', title + ', ' + span + '. ' + years.map(function (y, i) { return y.year + ': ' + totals[i] + ' offers'; }).join(', '));
+			canvas.setAttribute('aria-label', title + ', ' + span + '. ' + years.map(function (y, i) {
+				return y.year + ': ' + totals[i] + ' offers' + (y.appeared ? ', ' + y.appeared + ' students appeared' : '');
+			}).join('; '));
 			if (chart) { chart.destroy(); }
 			chart = new window.Chart(canvas, {
 				type: 'bar',
 				data: { labels: labels, datasets: datasets },
 				options: o,
-				plugins: [surfacePlugin, valueLabelPlugin]
+				plugins: [surfacePlugin, lineLabelPlugin(maxIndex, totals.length - 1, f)]
 			});
 			buildTable();
 		}
 
 		function buildTable() {
 			tableWrap.innerHTML = '';
-			var head, body = el('tbody');
-			if (view === 'totals') {
-				head = ['Year', 'Total offers', 'Students appeared'];
-				years.forEach(function (y, i) {
-					body.appendChild(el('tr', {}, [el('td', { text: String(y.year) }), el('td', { 'class': 'cpl-num', text: String(totals[i]) }), el('td', { 'class': 'cpl-num', text: y.appeared ? String(y.appeared) : '–' })]));
-				});
-			} else {
-				head = ['Year'].concat(top.map(function (k) { return groups[k].name; }), ['Other companies', 'Total']);
-				years.forEach(function (y, i) {
-					var cells = [el('td', { text: String(y.year) })];
-					top.forEach(function (k) { cells.push(el('td', { 'class': 'cpl-num', text: String(groups[k].data[i] || '–') })); });
-					cells.push(el('td', { 'class': 'cpl-num', text: String(otherData[i] || '–') }));
-					cells.push(el('td', { 'class': 'cpl-num', text: String(totals[i]) }));
-					body.appendChild(el('tr', {}, cells));
-				});
-			}
+			var head = ['Year'].concat(top.map(function (k) { return groups[k].name; }), ['Other companies', 'Total offers', 'Students appeared']);
+			var body = el('tbody');
+			years.forEach(function (y, i) {
+				var cells = [el('td', { text: String(y.year) })];
+				top.forEach(function (k) { cells.push(el('td', { 'class': 'cpl-num', text: String(groups[k].data[i] || '–') })); });
+				cells.push(el('td', { 'class': 'cpl-num', text: String(otherData[i] || '–') }));
+				cells.push(el('td', { 'class': 'cpl-num cpl-strong', text: String(totals[i]) }));
+				cells.push(el('td', { 'class': 'cpl-num', text: y.appeared ? String(y.appeared) : '–' }));
+				body.appendChild(el('tr', {}, cells));
+			});
 			tableWrap.appendChild(el('table', {}, [
 				el('caption', { 'class': 'screen-reader-text', text: title }),
 				el('thead', {}, [el('tr', {}, head.map(function (h, i) { return el('th', { scope: 'col', 'class': i ? 'cpl-num' : '', text: h }); }))]),
@@ -562,9 +575,7 @@
 			]));
 		}
 
-		btnTotals.addEventListener('click', function () { if (view !== 'totals') { view = 'totals'; draw(); } });
-		btnCompanies.addEventListener('click', function () { if (view !== 'companies') { view = 'companies'; draw(); } });
-		dlBtn.addEventListener('click', function () { if (chart) { downloadChart(chart, slug(title) + (view === 'companies' ? '-by-company' : '')); } });
+		dlBtn.addEventListener('click', function () { if (chart) { downloadChart(chart, slug(title)); } });
 
 		whenVisible(root, draw);
 	}
