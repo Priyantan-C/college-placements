@@ -3,7 +3,7 @@ Contributors: priyantanc
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.4.1
+Stable tag: 1.4.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,6 +20,9 @@ Shortcodes:
 * `[placement_records]` – year-wise student tables (`years="2026,2025"`, `open="none|first|all", default none`).
 
 == Changelog ==
+
+= 1.4.2 =
+* Fix: clicking the "Earlier" years button showed several stacked focus outlines. It now shows one soft highlight.
 
 = 1.4.1 =
 * Removed the Table buttons. The year view now always shows a summary table beside the donut (rank, company, offers, share bar and %, total), fitted for desktop and phones. The trend chart's numbers stay available to screen readers.

@@ -45,7 +45,12 @@
 }
 .cpl-widget .cpl-pill-dropdown select option { color: #1d2327; background: #fff; }
 .cpl-pill-caret { position: absolute; right: 12px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%); pointer-events: none; }
-.cpl-pill-dropdown:focus-within { outline: 2px solid var(--cpl-accent); outline-offset: 2px; }
+/* One focus style only: themes and the general focus outline would otherwise stack rings on the select. */
+.cpl-widget .cpl-pill-dropdown select:focus, .cpl-widget .cpl-pill-dropdown select:focus-visible, .cpl-widget .cpl-pill-dropdown select:active {
+	outline: none !important; box-shadow: none !important; border: 0 !important;
+}
+.cpl-widget .cpl-pill-dropdown:focus-within { outline: none; border-color: var(--cpl-accent); color: var(--cpl-accent); box-shadow: 0 0 0 3px rgba(30, 115, 190, .15); }
+.cpl-widget .cpl-pill-dropdown.is-active:focus-within { color: #fff; border-color: var(--cpl-primary); }
 .cpl-segmented { padding: 3px; border: 1px solid var(--cpl-line); border-radius: 999px; background: var(--cpl-wash); gap: 2px; }
 .cpl-seg { border-color: transparent; background: transparent; padding: 6px 16px; font-size: 14px; }
 .cpl-actions { display: flex; gap: 6px; }
