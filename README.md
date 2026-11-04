@@ -38,7 +38,7 @@ One sheet per year, named after the year. Header row: `companyName`, `placements
 
 * Each year has a **Charts use** setting: *Summary numbers* (from a workbook or typed in) or *Calculated from student list*. New years default to calculated.
 * Data lives in four tables: `wp_cpl_years`, `wp_cpl_summary`, `wp_cpl_records` and `wp_cpl_aliases`. Deactivating or deleting the plugin keeps them.
-* Who can manage the data: administrators by default. You can change this with the `cpl_capability` filter.
+* Who can manage the data: Editors and Administrators (Years, Upload, Company names, Settings). **Import summary workbook** and **Import from page** are for Administrators only. Change either with the `cpl_capability` and `cpl_admin_capability` filters.
 
 ## Releasing an update
 

@@ -558,157 +558,315 @@
 		if (!years.length) { return; }
 		var f = fonts(root);
 		var title = root.getAttribute('data-title') || 'Placements over the years';
-		var labels = years.map(function (y) { return String(y.year); });
 		var totals = years.map(function (y) { return sum(y.rows); });
 		var appeared = years.map(function (y) { return y.appeared || null; });
 		var span = years[0].year + '–' + years[years.length - 1].year;
+		var TOP = DONUT.length; // companies with their own colour by default
+		var LINE_TOTAL = '#1d2327';
+		var LINE_APPEARED = '#565d66';
 
-		/* Top 8 companies across all years keep a fixed colour; the rest share grey. */
+		/* Every company across all years (spellings merged), ranked by total offers. */
 		var groups = {};
 		years.forEach(function (y, yi) {
 			y.rows.forEach(function (r) {
 				var name = r[2] || r[0];
 				var k = isOthers(name) ? '__other' : key(name);
-				if (!groups[k]) { groups[k] = { name: name, total: 0, data: years.map(function () { return 0; }) }; }
+				if (!groups[k]) { groups[k] = { key: k, name: name, total: 0, data: years.map(function () { return 0; }) }; }
 				groups[k].total += r[1];
 				groups[k].data[yi] += r[1];
 				if (k !== '__other') { groups[k].name = name; }
 			});
 		});
 		var ranked = Object.keys(groups).filter(function (k) { return k !== '__other'; })
-			.sort(function (a, b) { return groups[b].total - groups[a].total; });
-		var top = ranked.slice(0, CATEGORICAL.length);
-		var otherData = years.map(function (y, yi) {
-			var t = groups.__other ? groups.__other.data[yi] : 0;
-			ranked.slice(CATEGORICAL.length).forEach(function (k) { t += groups[k].data[yi]; });
-			return t;
-		});
+			.sort(function (a, b) { return groups[b].total - groups[a].total || groups[a].name.localeCompare(groups[b].name); });
+		ranked.forEach(function (k, i) { groups[k].colour = i < TOP ? DONUT[i] : '#1e73be'; });
+		function restOf(keep) {
+			return years.map(function (y, yi) {
+				var t = groups.__other ? groups.__other.data[yi] : 0;
+				ranked.forEach(function (k) { if (keep.indexOf(k) === -1) { t += groups[k].data[yi]; } });
+				return t;
+			});
+		}
 
+		var state = { focus: null, sideways: false };
+
+		/* ---- DOM: toolbar, heading, canvas, company chips ---- */
 		var dlBtn = actionButton('Download', ICON_DOWNLOAD);
 		dlBtn.setAttribute('aria-label', 'Download chart as image');
 		var toolbar = el('div', { 'class': 'cpl-toolbar cpl-toolbar-end' }, [el('div', { 'class': 'cpl-actions' }, [dlBtn])]);
 		var canvasWrap = el('div', { 'class': 'cpl-canvas cpl-canvas-trend' });
 		var canvas = el('canvas', { role: 'img' });
 		canvasWrap.appendChild(canvas);
-		// The numbers behind the chart, for screen readers.
-		var tableWrap = el('div', { 'class': 'screen-reader-text' });
-		root.appendChild(toolbar);
 		var trendSub = span + ' · offers by company, with total offers and students appeared';
 		var head = chartHead();
 		head.title.textContent = title;
 		head.sub.textContent = trendSub;
-		root.appendChild(el('div', { 'class': 'cpl-card' }, [head.node, canvasWrap, tableWrap]));
 
-		var chart = null;
-		var maxIndex = totals.indexOf(Math.max.apply(Math, totals));
-		var LINE_TOTAL = '#1d2327';
-		var LINE_APPEARED = '#565d66';
+		var legendKey = el('div', { 'class': 'cpl-legend-key' });
+		var chips = el('div', { 'class': 'cpl-company-chips', role: 'group', 'aria-label': 'Highlight a company' });
+		var note = el('p', { 'class': 'cpl-focus-note', 'aria-live': 'polite' });
+		var legend = el('div', { 'class': 'cpl-legend' }, [legendKey, chips, note]);
+		// The numbers behind the chart, for screen readers.
+		var tableWrap = el('div', { 'class': 'screen-reader-text' });
+		root.appendChild(toolbar);
+		root.appendChild(el('div', { 'class': 'cpl-card' }, [head.node, canvasWrap, legend, tableWrap]));
 
-		/* One chart: offers stacked by company (top recruiters + the rest), with a Total offers line
-		   and a Students appeared line on the same axis (both are counts of students). */
+		function chip(k) {
+			var g = groups[k];
+			var b = el('button', { type: 'button', 'class': 'cpl-cchip', 'data-key': k, 'aria-pressed': 'false' }, [
+				el('span', { 'class': 'cpl-dot', 'aria-hidden': 'true' }),
+				el('span', { 'class': 'cpl-cchip-name', text: g.name }),
+				el('span', { 'class': 'cpl-cchip-count', text: String(g.total) })
+			]);
+			b.firstChild.style.background = g.colour;
+			b.addEventListener('click', function () { setFocus(state.focus === k ? null : k); });
+			return b;
+		}
+		var chipButtons = {};
+		ranked.forEach(function (k, i) {
+			var b = chip(k);
+			if (i >= TOP) { b.classList.add('is-extra'); b.hidden = true; }
+			chipButtons[k] = b;
+			chips.appendChild(b);
+		});
+		var moreBtn = null;
+		if (ranked.length > TOP) {
+			moreBtn = el('button', { type: 'button', 'class': 'cpl-cchip cpl-cchip-more', 'aria-expanded': 'false', text: '+ ' + (ranked.length - TOP) + ' more companies' });
+			moreBtn.addEventListener('click', function () {
+				var open = moreBtn.getAttribute('aria-expanded') !== 'true';
+				Array.prototype.forEach.call(chips.querySelectorAll('.is-extra'), function (b) { b.hidden = !open; });
+				moreBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+				moreBtn.textContent = open ? 'Show fewer' : '+ ' + (ranked.length - TOP) + ' more companies';
+				chips.appendChild(moreBtn);
+			});
+			chips.appendChild(moreBtn);
+		}
+
+		function setFocus(k) {
+			state.focus = k;
+			Object.keys(chipButtons).forEach(function (x) {
+				var on = x === k;
+				chipButtons[x].classList.toggle('is-active', on);
+				chipButtons[x].setAttribute('aria-pressed', on ? 'true' : 'false');
+			});
+			chips.classList.toggle('has-focus', !!k);
+			if (k) {
+				var g = groups[k];
+				var best = g.data.indexOf(Math.max.apply(Math, g.data));
+				var yearsWith = g.data.filter(function (v) { return v > 0; }).length;
+				note.innerHTML = '';
+				note.appendChild(el('strong', { text: g.name }));
+				note.appendChild(document.createTextNode(': ' + g.total + ' offers in ' + yearsWith + (yearsWith === 1 ? ' year' : ' years') + ' · best year ' + years[best].year + ' (' + g.data[best] + ') '));
+				var clear = el('button', { type: 'button', 'class': 'cpl-linkbtn', text: 'Show all companies' });
+				clear.addEventListener('click', function () { setFocus(null); });
+				note.appendChild(clear);
+			} else {
+				note.textContent = 'Tap a company to highlight it.';
+			}
+			draw();
+		}
+
+		/* ---- Chart configuration (page: vertical on wide screens, sideways on phones; downloads: always vertical) ---- */
 		function buildConfig(forExport) {
-			var narrow = !forExport && root.clientWidth < 520;
-			var o = baseOptions(f, title, trendSub, forExport);
-			var x = axisStyle(f);
-			x.grid = { display: false };
-			x.ticks.maxRotation = 0;
-			x.ticks.autoSkipPadding = 6;
-			x.stacked = true;
-			var yAxis = axisStyle(f);
-			yAxis.beginAtZero = true;
-			yAxis.grace = '10%';
-			yAxis.ticks.precision = 0;
-			yAxis.stacked = true;
-			yAxis.border = { display: false };
-			o.scales = { x: x, y: yAxis };
-			o.interaction = { mode: 'index', intersect: false };
-			o.plugins.legend = {
-				display: true, position: 'top', align: 'start',
-				labels: {
-					color: INK.secondary, font: { family: f.body, size: narrow ? 11 : 12 }, boxWidth: 12, boxHeight: 12, padding: narrow ? 8 : 14,
-					generateLabels: function (c) {
-						return c.data.datasets.map(function (ds, i) {
-							var line = ds.type === 'line';
-							return {
-								text: narrow ? truncate(ds.label, 18) : ds.label, datasetIndex: i, hidden: !c.isDatasetVisible(i),
-								fillStyle: line ? '#fff' : ds.backgroundColor, strokeStyle: line ? ds.borderColor : 'transparent',
-								lineWidth: line ? 2 : 0, lineDash: ds.borderDash || [], pointStyle: line ? (ds.pointStyle || 'circle') : 'rectRounded',
-								fontColor: INK.secondary
-							};
-						});
-					},
-					usePointStyle: true, pointStyleWidth: 14
-				}
-			};
+			var sideways = !forExport && state.sideways;
+			var order = years.map(function (y, i) { return i; });
+			if (sideways) { order.reverse(); } // latest year at the top
+			var pick = function (arr) { return order.map(function (i) { return arr[i]; }); };
+			var labels = pick(years.map(function (y) { return String(y.year); }));
+			var focus = state.focus;
+
+			var o = baseOptions(f, title, focus ? span + ' · ' + groups[focus].name + ' highlighted' : trendSub, forExport);
+			if (sideways) { o.indexAxis = 'y'; }
+			var cat = axisStyle(f);
+			cat.grid = { display: false };
+			cat.stacked = true;
+			cat.ticks.maxRotation = 0;
+			cat.ticks.autoSkipPadding = 6;
+			if (sideways) { cat.ticks.autoSkip = false; cat.ticks.color = INK.primary; cat.ticks.font = { family: f.body, size: 13, weight: '600' }; }
+			var val = axisStyle(f);
+			val.beginAtZero = true;
+			val.grace = sideways ? '14%' : '10%';
+			val.ticks.precision = 0;
+			val.stacked = true;
+			val.border = { display: false };
+			if (sideways) { val.position = 'top'; val.ticks.maxTicksLimit = 5; }
+			o.scales = sideways ? { y: cat, x: val } : { x: cat, y: val };
+			o.interaction = { mode: 'index', intersect: false, axis: sideways ? 'y' : 'x' };
 			o.plugins.tooltip.filter = function (item) { return item.raw > 0; };
 			o.plugins.tooltip.itemSort = function (a, b) {
 				var al = a.dataset.type === 'line', bl = b.dataset.type === 'line';
 				if (al !== bl) { return al ? -1 : 1; }
 				return b.raw - a.raw;
 			};
-
-			var stackStyle = {
-				type: 'bar', stack: 'offers', borderColor: INK.surface, borderWidth: { top: 1, bottom: 1, left: 0, right: 0 },
-				borderSkipped: false, barPercentage: 0.72, categoryPercentage: 0.9, maxBarThickness: 40, order: 2
+			o.plugins.tooltip.callbacks = {
+				title: function (items) { var i = order[items[0].dataIndex]; return years[i].year + ' · ' + totals[i] + ' offers'; }
 			};
-			var datasets = [
-				{
-					type: 'line', label: 'Total offers', data: totals, stack: 'total', order: 0,
-					borderColor: LINE_TOTAL, backgroundColor: LINE_TOTAL, borderWidth: 2.5, cubicInterpolationMode: 'monotone',
-					pointRadius: 4, pointHoverRadius: 6, pointBorderColor: '#fff', pointBorderWidth: 2
-				},
-				{
-					type: 'line', label: 'Students appeared', data: appeared, stack: 'appeared', order: 1,
-					borderColor: LINE_APPEARED, backgroundColor: LINE_APPEARED, borderWidth: 2, borderDash: [6, 4], cubicInterpolationMode: 'monotone',
-					pointStyle: 'rectRot', pointRadius: 5, pointHoverRadius: 7, pointBorderColor: '#fff', pointBorderWidth: 2, spanGaps: true
-				}
-			];
-			top.forEach(function (k, i) {
-				datasets.push(Object.assign({ label: groups[k].name, data: groups[k].data, backgroundColor: CATEGORICAL[i] }, stackStyle));
-			});
-			if (otherData.some(function (v) { return v > 0; })) {
-				datasets.push(Object.assign({ label: 'Other companies', data: otherData, backgroundColor: OTHER }, stackStyle));
+			if (forExport) {
+				o.plugins.legend = {
+					display: true, position: 'top', align: 'start',
+					labels: {
+						color: INK.secondary, font: { family: f.body, size: 15 }, boxWidth: 14, boxHeight: 14, padding: 14, usePointStyle: true, pointStyleWidth: 16,
+						generateLabels: function (c) {
+							return c.data.datasets.map(function (ds, i) {
+								var line = ds.type === 'line';
+								return {
+									text: ds.label, datasetIndex: i, hidden: false,
+									fillStyle: line ? '#fff' : ds.backgroundColor, strokeStyle: line ? ds.borderColor : 'transparent',
+									lineWidth: line ? 2 : 0, lineDash: ds.borderDash || [], pointStyle: line ? (ds.pointStyle || 'circle') : 'rectRounded',
+									fontColor: INK.secondary
+								};
+							});
+						}
+					}
+				};
 			}
 
+			var barStyle = {
+				type: 'bar', stack: 'offers', borderColor: INK.surface,
+				borderWidth: sideways ? { top: 0, bottom: 0, left: 1, right: 1 } : { top: 1, bottom: 1, left: 0, right: 0 },
+				borderSkipped: false, barPercentage: sideways ? 0.78 : 0.72, categoryPercentage: 0.9, maxBarThickness: sideways ? 22 : 40, order: 2
+			};
+			var datasets = [];
+			if (!sideways) {
+				datasets.push({
+					type: 'line', label: 'Total offers', data: pick(totals), stack: 'total', order: 0,
+					borderColor: LINE_TOTAL, backgroundColor: LINE_TOTAL, borderWidth: 2.5, cubicInterpolationMode: 'monotone',
+					pointRadius: 4, pointHoverRadius: 6, pointBorderColor: '#fff', pointBorderWidth: 2
+				});
+			}
+			datasets.push({
+				type: 'line', label: 'Students appeared', data: pick(appeared), stack: 'appeared', order: 1,
+				borderColor: LINE_APPEARED, backgroundColor: LINE_APPEARED, borderWidth: 2, borderDash: [6, 4], cubicInterpolationMode: 'monotone',
+				showLine: !sideways, indexAxis: sideways ? 'y' : 'x', pointStyle: 'rectRot', pointRadius: sideways ? 6 : 5, pointHoverRadius: 7, pointBorderColor: '#fff', pointBorderWidth: 2, spanGaps: true
+			});
+			var keep;
+			if (focus) {
+				keep = [focus];
+				datasets.push(Object.assign({ label: groups[focus].name, data: pick(groups[focus].data), backgroundColor: groups[focus].colour, cplFocus: true }, barStyle));
+				datasets.push(Object.assign({ label: 'All other companies', data: pick(restOf(keep)), backgroundColor: 'rgba(170, 177, 187, 0.45)' }, barStyle));
+			} else {
+				keep = ranked.slice(0, TOP);
+				keep.forEach(function (k) {
+					datasets.push(Object.assign({ label: groups[k].name, data: pick(groups[k].data), backgroundColor: groups[k].colour }, barStyle));
+				});
+				var rest = restOf(keep);
+				if (rest.some(function (v) { return v > 0; })) {
+					datasets.push(Object.assign({ label: 'Other companies', data: pick(rest), backgroundColor: OTHER }, barStyle));
+				}
+			}
+
+			var maxIndex = totals.indexOf(Math.max.apply(Math, totals));
+			var plugins = [surfacePlugin];
+			if (sideways) {
+				plugins.push(endTotalsPlugin(pick(totals), pick(appeared), f));
+			} else {
+				plugins.push(lineLabelPlugin(maxIndex, totals.length - 1, f));
+			}
+			if (focus) { plugins.push(focusValuesPlugin(f)); }
+			return { type: 'bar', data: { labels: labels, datasets: datasets }, options: o, plugins: plugins };
+		}
+
+		var chart = null;
+		function draw() {
+			state.sideways = root.clientWidth < 560;
+			canvasWrap.classList.toggle('is-sideways', state.sideways);
+			canvasWrap.style.height = state.sideways ? (years.length * 30 + 70) + 'px' : '';
+			legendKey.innerHTML = state.sideways
+				? '<span class="cpl-key-item"><strong>Bold number</strong>&nbsp;= total offers</span><span class="cpl-key-item"><span class="cpl-key-diamond" aria-hidden="true"></span> Students appeared</span>'
+				: '<span class="cpl-key-item"><span class="cpl-key-line" aria-hidden="true"></span> Total offers</span><span class="cpl-key-item"><span class="cpl-key-dash" aria-hidden="true"></span> Students appeared</span>';
 			canvas.setAttribute('aria-label', title + ', ' + span + '. ' + years.map(function (y, i) {
 				return y.year + ': ' + totals[i] + ' offers' + (y.appeared ? ', ' + y.appeared + ' students appeared' : '');
 			}).join('; '));
-			return {
-				type: 'bar',
-				data: { labels: labels, datasets: datasets },
-				options: o,
-				plugins: [surfacePlugin, lineLabelPlugin(maxIndex, totals.length - 1, f)]
-			};
-		}
-
-		function draw() {
 			if (chart) { chart.destroy(); }
 			chart = new window.Chart(canvas, buildConfig(false));
-			buildTable();
 		}
 
 		function buildTable() {
-			tableWrap.innerHTML = '';
-			var head = ['Year'].concat(top.map(function (k) { return groups[k].name; }), ['Other companies', 'Total offers', 'Students appeared']);
+			var head2 = ['Year'].concat(ranked.slice(0, TOP).map(function (k) { return groups[k].name; }), ['Other companies', 'Total offers', 'Students appeared']);
+			var rest = restOf(ranked.slice(0, TOP));
 			var body = el('tbody');
 			years.forEach(function (y, i) {
 				var cells = [el('td', { text: String(y.year) })];
-				top.forEach(function (k) { cells.push(el('td', { 'class': 'cpl-num', text: String(groups[k].data[i] || '–') })); });
-				cells.push(el('td', { 'class': 'cpl-num', text: String(otherData[i] || '–') }));
-				cells.push(el('td', { 'class': 'cpl-num cpl-strong', text: String(totals[i]) }));
-				cells.push(el('td', { 'class': 'cpl-num', text: y.appeared ? String(y.appeared) : '–' }));
+				ranked.slice(0, TOP).forEach(function (k) { cells.push(el('td', { text: String(groups[k].data[i] || 0) })); });
+				cells.push(el('td', { text: String(rest[i] || 0) }));
+				cells.push(el('td', { text: String(totals[i]) }));
+				cells.push(el('td', { text: y.appeared ? String(y.appeared) : '–' }));
 				body.appendChild(el('tr', {}, cells));
 			});
 			tableWrap.appendChild(el('table', {}, [
-				el('caption', { 'class': 'screen-reader-text', text: title }),
-				el('thead', {}, [el('tr', {}, head.map(function (h, i) { return el('th', { scope: 'col', 'class': i ? 'cpl-num' : '', text: h }); }))]),
+				el('caption', { text: title }),
+				el('thead', {}, [el('tr', {}, head2.map(function (h) { return el('th', { scope: 'col', text: h }); }))]),
 				body
 			]));
 		}
 
-		dlBtn.addEventListener('click', function () { exportChart(buildConfig, 1200, 600, slug(title)); });
+		dlBtn.addEventListener('click', function () {
+			exportChart(buildConfig, 1200, 640, slug(title) + (state.focus ? '-' + slug(groups[state.focus].name) : ''));
+		});
+		var lastSideways = null;
+		window.addEventListener('resize', function () {
+			var sw = root.clientWidth < 560;
+			if (chart && sw !== lastSideways) { lastSideways = sw; draw(); }
+		});
 
-		whenVisible(root, draw);
+		whenVisible(root, function () {
+			buildTable();
+			lastSideways = root.clientWidth < 560;
+			setFocus(null);
+		});
+	}
+
+	/* Sideways trend chart: the year's total offers at the end of each stacked bar. */
+	function endTotalsPlugin(values, markers, f) {
+		return {
+			id: 'cplEndTotals',
+			afterDatasetsDraw: function (chart) {
+				var xs = chart.scales.x, ys = chart.scales.y, ctx = chart.ctx;
+				ctx.save();
+				ctx.font = '700 13px ' + f.body;
+				ctx.fillStyle = INK.primary;
+				ctx.textAlign = 'left';
+				ctx.textBaseline = 'middle';
+				values.forEach(function (v, i) {
+					if (!v) { return; }
+					// Start after the bar end, or after the students-appeared diamond if that sits further right.
+					var x = xs.getPixelForValue(v) + 6;
+					if (markers[i]) { x = Math.max(x, xs.getPixelForValue(markers[i]) + 10); }
+					ctx.lineWidth = 3;
+					ctx.strokeStyle = '#fff';
+					ctx.strokeText(String(v), x, ys.getPixelForValue(i));
+					ctx.fillText(String(v), x, ys.getPixelForValue(i));
+				});
+				ctx.restore();
+			}
+		};
+	}
+
+	/* Highlighted company: its number on each bar segment, where it fits. */
+	function focusValuesPlugin(f) {
+		return {
+			id: 'cplFocusValues',
+			afterDatasetsDraw: function (chart) {
+				var di = chart.data.datasets.findIndex(function (d) { return d.cplFocus; });
+				if (di < 0) { return; }
+				var meta = chart.getDatasetMeta(di);
+				var horizontal = chart.options.indexAxis === 'y';
+				var ctx = chart.ctx;
+				ctx.save();
+				ctx.font = '700 12px ' + f.body;
+				ctx.fillStyle = '#fff';
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+				meta.data.forEach(function (bar, i) {
+					var v = chart.data.datasets[di].data[i];
+					if (!v) { return; }
+					var size = horizontal ? Math.abs(bar.x - bar.base) : Math.abs(bar.base - bar.y);
+					if (size < 18) { return; }
+					ctx.fillText(String(v), horizontal ? (bar.x + bar.base) / 2 : bar.x, horizontal ? bar.y : (bar.y + bar.base) / 2);
+				});
+				ctx.restore();
+			}
+		};
 	}
 
 	/* Match the theme: heading font for chart titles, and the page colour behind the year buttons' fade. */

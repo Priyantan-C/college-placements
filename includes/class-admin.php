@@ -21,8 +21,14 @@ class CPL_Admin {
 		} );
 	}
 
+	/** Who can manage placements day to day (Editors and Administrators by default). */
 	public static function cap() {
-		return apply_filters( 'cpl_capability', 'manage_options' );
+		return apply_filters( 'cpl_capability', 'edit_others_pages' );
+	}
+
+	/** Who can run the bulk imports (Administrators only by default). */
+	public static function admin_cap() {
+		return apply_filters( 'cpl_admin_capability', 'manage_options' );
 	}
 
 	public static function url( $page = '', $args = array() ) {
@@ -36,8 +42,9 @@ class CPL_Admin {
 		add_submenu_page( self::SLUG, 'Placement years', 'Years', $cap, self::SLUG, array( __CLASS__, 'page_years' ) );
 		add_submenu_page( self::SLUG, 'Upload student list', 'Upload student list', $cap, self::SLUG . '-upload', array( __CLASS__, 'page_upload' ) );
 		add_submenu_page( self::SLUG, 'Company names', 'Company names', $cap, self::SLUG . '-names', array( __CLASS__, 'page_names' ) );
-		add_submenu_page( self::SLUG, 'Import summary workbook', 'Import summary workbook', $cap, self::SLUG . '-summary', array( __CLASS__, 'page_summary' ) );
-		add_submenu_page( self::SLUG, 'Import tables from a page', 'Import from page', $cap, self::SLUG . '-import', array( __CLASS__, 'page_import' ) );
+		$admin = self::admin_cap();
+		add_submenu_page( self::SLUG, 'Import summary workbook', 'Import summary workbook', $admin, self::SLUG . '-summary', array( __CLASS__, 'page_summary' ) );
+		add_submenu_page( self::SLUG, 'Import tables from a page', 'Import from page', $admin, self::SLUG . '-import', array( __CLASS__, 'page_import' ) );
 		add_submenu_page( self::SLUG, 'Placement settings', 'Settings', $cap, self::SLUG . '-settings', array( __CLASS__, 'page_settings' ) );
 	}
 
@@ -144,7 +151,7 @@ class CPL_Admin {
 	}
 
 	public static function handle_summary_upload() {
-		self::check( 'summary_upload' );
+		self::check( 'summary_upload', self::admin_cap() );
 		$file = $_FILES['file'] ?? null; // phpcs:ignore WordPress.Security
 		if ( ! $file || UPLOAD_ERR_OK !== (int) $file['error'] || ! is_uploaded_file( $file['tmp_name'] ) || 'xlsx' !== strtolower( pathinfo( (string) $file['name'], PATHINFO_EXTENSION ) ) ) {
 			self::flash( 'Please upload an .xlsx file.', 'error' );
@@ -165,7 +172,7 @@ class CPL_Admin {
 	}
 
 	public static function handle_summary_confirm() {
-		self::check( 'summary_confirm' );
+		self::check( 'summary_confirm', self::admin_cap() );
 		$token = sanitize_key( self::post( 'token' ) );
 		$data  = get_transient( 'cpl_summary_' . $token );
 		if ( ! $data || (int) $data['user'] !== get_current_user_id() ) {
@@ -204,8 +211,8 @@ class CPL_Admin {
 
 	/* ---------- Helpers ---------- */
 
-	private static function check( $action ) {
-		if ( ! current_user_can( self::cap() ) ) {
+	private static function check( $action, $capability = null ) {
+		if ( ! current_user_can( $capability ?: self::cap() ) ) {
 			wp_die( 'You do not have permission to do this.' );
 		}
 		check_admin_referer( 'cpl_' . $action );
@@ -274,10 +281,9 @@ class CPL_Admin {
 						</tr></thead>
 						<tbody>
 						<?php if ( ! $years ) : ?>
-							<tr><td colspan="8">No years yet. Start with one of these:
-								<a href="<?php echo esc_url( self::url( 'upload' ) ); ?>">upload a student list</a>,
-								<a href="<?php echo esc_url( self::url( 'summary' ) ); ?>">import a summary workbook</a> for past years, or
-								<a href="<?php echo esc_url( self::url( 'import' ) ); ?>">import tables from an existing page</a>.
+							<tr><td colspan="8">No years yet. Start by <a href="<?php echo esc_url( self::url( 'upload' ) ); ?>">uploading a student list</a><?php if ( current_user_can( self::admin_cap() ) ) : ?>,
+								<a href="<?php echo esc_url( self::url( 'summary' ) ); ?>">importing a summary workbook</a> for past years, or
+								<a href="<?php echo esc_url( self::url( 'import' ) ); ?>">importing tables from an existing page</a><?php endif; ?>.
 								Set the college name under <a href="<?php echo esc_url( self::url( 'settings' ) ); ?>">Settings</a>.</td></tr>
 						<?php endif; ?>
 						<?php foreach ( $years as $y ) :
@@ -925,7 +931,7 @@ class CPL_Admin {
 	}
 
 	public static function handle_import_scan() {
-		self::check( 'import_scan' );
+		self::check( 'import_scan', self::admin_cap() );
 		$page_id = absint( self::post( 'page_id', 0 ) );
 		$post    = $page_id ? get_post( $page_id ) : null;
 		if ( ! $post ) {
@@ -942,7 +948,7 @@ class CPL_Admin {
 	}
 
 	public static function handle_import_confirm() {
-		self::check( 'import_confirm' );
+		self::check( 'import_confirm', self::admin_cap() );
 		$token = sanitize_key( self::post( 'token' ) );
 		$scan  = get_transient( 'cpl_scan_' . $token );
 		if ( ! $scan || (int) $scan['user'] !== get_current_user_id() ) {
