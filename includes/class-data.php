@@ -5,9 +5,9 @@
 
 defined( 'ABSPATH' ) || exit;
 
-class STCET_PL_Data {
+class CPL_Data {
 
-	const CACHE_KEY   = 'stcet_pl_chart_payload';
+	const CACHE_KEY   = 'cpl_chart_payload';
 	const OTHERS      = 'Others';
 	const SOURCE_SUM  = 'summary';
 	const SOURCE_REC  = 'records';
@@ -62,7 +62,7 @@ class STCET_PL_Data {
 
 	public static function get_aliases() {
 		global $wpdb;
-		$rows = $wpdb->get_results( 'SELECT alias_key, alias, company FROM ' . STCET_PL_DB::table( 'aliases' ) . ' ORDER BY company, alias', ARRAY_A );
+		$rows = $wpdb->get_results( 'SELECT alias_key, alias, company FROM ' . CPL_DB::table( 'aliases' ) . ' ORDER BY company, alias', ARRAY_A );
 		$out  = array();
 		foreach ( (array) $rows as $r ) {
 			$out[ $r['alias_key'] ] = $r;
@@ -78,7 +78,7 @@ class STCET_PL_Data {
 		if ( '' === $key || '' === $company ) {
 			return;
 		}
-		$wpdb->replace( STCET_PL_DB::table( 'aliases' ), array(
+		$wpdb->replace( CPL_DB::table( 'aliases' ), array(
 			'alias_key' => substr( $key, 0, 191 ),
 			'alias'     => $alias,
 			'company'   => $company,
@@ -90,7 +90,7 @@ class STCET_PL_Data {
 
 	public static function delete_alias( $alias_key ) {
 		global $wpdb;
-		$wpdb->delete( STCET_PL_DB::table( 'aliases' ), array( 'alias_key' => $alias_key ) );
+		$wpdb->delete( CPL_DB::table( 'aliases' ), array( 'alias_key' => $alias_key ) );
 		self::flush_cache();
 	}
 
@@ -125,13 +125,13 @@ class STCET_PL_Data {
 
 	public static function get_years() {
 		global $wpdb;
-		$rows = $wpdb->get_results( 'SELECT * FROM ' . STCET_PL_DB::table( 'years' ) . ' ORDER BY year DESC', ARRAY_A );
+		$rows = $wpdb->get_results( 'SELECT * FROM ' . CPL_DB::table( 'years' ) . ' ORDER BY year DESC', ARRAY_A );
 		return array_map( array( __CLASS__, 'hydrate_year' ), (array) $rows );
 	}
 
 	public static function get_year( $year ) {
 		global $wpdb;
-		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . STCET_PL_DB::table( 'years' ) . ' WHERE year = %d', $year ), ARRAY_A );
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . CPL_DB::table( 'years' ) . ' WHERE year = %d', $year ), ARRAY_A );
 		return $row ? self::hydrate_year( $row ) : null;
 	}
 
@@ -151,7 +151,7 @@ class STCET_PL_Data {
 		if ( self::get_year( $year ) ) {
 			return;
 		}
-		$wpdb->insert( STCET_PL_DB::table( 'years' ), array(
+		$wpdb->insert( CPL_DB::table( 'years' ), array(
 			'year'         => (int) $year,
 			'chart_source' => $source,
 			'featured'     => wp_json_encode( array() ),
@@ -170,14 +170,14 @@ class STCET_PL_Data {
 			$data['featured'] = wp_json_encode( array_values( $data['featured'] ) );
 		}
 		$data['updated_at'] = current_time( 'mysql' );
-		$wpdb->update( STCET_PL_DB::table( 'years' ), $data, array( 'year' => (int) $year ) );
+		$wpdb->update( CPL_DB::table( 'years' ), $data, array( 'year' => (int) $year ) );
 		self::flush_cache();
 	}
 
 	public static function delete_year( $year ) {
 		global $wpdb;
 		foreach ( array( 'years', 'summary', 'records' ) as $t ) {
-			$wpdb->delete( STCET_PL_DB::table( $t ), array( 'year' => (int) $year ) );
+			$wpdb->delete( CPL_DB::table( $t ), array( 'year' => (int) $year ) );
 		}
 		self::flush_cache();
 	}
@@ -186,7 +186,7 @@ class STCET_PL_Data {
 
 	public static function get_summary( $year ) {
 		global $wpdb;
-		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT company, offers FROM ' . STCET_PL_DB::table( 'summary' ) . ' WHERE year = %d ORDER BY position, id', $year ), ARRAY_A );
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT company, offers FROM ' . CPL_DB::table( 'summary' ) . ' WHERE year = %d ORDER BY position, id', $year ), ARRAY_A );
 		$out  = array();
 		foreach ( (array) $rows as $r ) {
 			$out[] = array( $r['company'], (int) $r['offers'] );
@@ -197,7 +197,7 @@ class STCET_PL_Data {
 	/** @param array $companies List of [company, offers]. */
 	public static function save_summary( $year, array $companies, $flush = true ) {
 		global $wpdb;
-		$table = STCET_PL_DB::table( 'summary' );
+		$table = CPL_DB::table( 'summary' );
 		$wpdb->delete( $table, array( 'year' => (int) $year ) );
 		$pos = 0;
 		foreach ( $companies as $c ) {
@@ -221,12 +221,12 @@ class STCET_PL_Data {
 
 	public static function get_records( $year ) {
 		global $wpdb;
-		return (array) $wpdb->get_results( $wpdb->prepare( 'SELECT sl, dept, name, urn, org FROM ' . STCET_PL_DB::table( 'records' ) . ' WHERE year = %d ORDER BY position, id', $year ), ARRAY_A );
+		return (array) $wpdb->get_results( $wpdb->prepare( 'SELECT sl, dept, name, urn, org FROM ' . CPL_DB::table( 'records' ) . ' WHERE year = %d ORDER BY position, id', $year ), ARRAY_A );
 	}
 
 	public static function record_counts_by_year() {
 		global $wpdb;
-		$rows = $wpdb->get_results( 'SELECT year, COUNT(*) AS n FROM ' . STCET_PL_DB::table( 'records' ) . ' GROUP BY year', ARRAY_A );
+		$rows = $wpdb->get_results( 'SELECT year, COUNT(*) AS n FROM ' . CPL_DB::table( 'records' ) . ' GROUP BY year', ARRAY_A );
 		$out  = array();
 		foreach ( (array) $rows as $r ) {
 			$out[ (int) $r['year'] ] = (int) $r['n'];
@@ -237,7 +237,7 @@ class STCET_PL_Data {
 	/** Replace a year's student list. Each row: sl, dept, name, urn, org. */
 	public static function replace_records( $year, array $rows ) {
 		global $wpdb;
-		$table = STCET_PL_DB::table( 'records' );
+		$table = CPL_DB::table( 'records' );
 		$wpdb->query( 'START TRANSACTION' );
 		$wpdb->delete( $table, array( 'year' => (int) $year ) );
 		$pos = 0;

@@ -1,4 +1,4 @@
-/* STCET Placements – admin helpers. */
+/* College Placements – admin helpers. */
 (function () {
 	'use strict';
 
@@ -11,9 +11,9 @@
 	}
 
 	/* Companies shown separately: live totals and tick all / none. */
-	var featured = document.querySelector('.stcet-pl-featured');
+	var featured = document.querySelector('.cpl-featured');
 	if (featured) {
-		var totalsCell = featured.querySelector('.stcet-pl-totals');
+		var totalsCell = featured.querySelector('.cpl-totals');
 		var boxes = $all('input[name="featured[]"]', featured);
 		var updateTotals = function () {
 			var total = parseInt(totalsCell.getAttribute('data-total'), 10) || 0;
@@ -25,10 +25,10 @@
 			totalsCell.textContent = 'Shown separately: ' + ticked + ' companies, ' + shown + ' offers · Others: ' + (total - shown) + ' offers · Total: ' + total;
 		};
 		boxes.forEach(function (b) { b.addEventListener('change', updateTotals); });
-		$all('[data-stcet-check]').forEach(function (a) {
+		$all('[data-cpl-check]').forEach(function (a) {
 			a.addEventListener('click', function (e) {
 				e.preventDefault();
-				var on = a.getAttribute('data-stcet-check') === 'all';
+				var on = a.getAttribute('data-cpl-check') === 'all';
 				boxes.forEach(function (b) { if (!b.disabled) { b.checked = on; } });
 				updateTotals();
 			});
@@ -40,18 +40,18 @@
 	var radios = $all('input[name="chart_source"]');
 	var syncPanels = function () {
 		var current = (radios.filter(function (r) { return r.checked; })[0] || {}).value;
-		$all('.stcet-pl-panel').forEach(function (p) {
-			p.classList.toggle('stcet-pl-inactive', p.getAttribute('data-panel') !== current);
+		$all('.cpl-panel').forEach(function (p) {
+			p.classList.toggle('cpl-inactive', p.getAttribute('data-panel') !== current);
 		});
 	};
 	radios.forEach(function (r) { r.addEventListener('change', syncPanels); });
 	if (radios.length) { syncPanels(); }
 
 	/* Summary rows. */
-	var summary = document.querySelector('.stcet-pl-summary');
+	var summary = document.querySelector('.cpl-summary');
 	if (summary) {
 		var body = summary.querySelector('tbody');
-		var totalEl = summary.querySelector('.stcet-pl-sum-total');
+		var totalEl = summary.querySelector('.cpl-sum-total');
 		var updateSum = function () {
 			var t = 0;
 			$all('input[name="summary_offers[]"]', summary).forEach(function (i) { t += parseInt(i.value, 10) || 0; });
@@ -59,12 +59,12 @@
 		};
 		summary.addEventListener('input', updateSum);
 		summary.addEventListener('click', function (e) {
-			if (e.target.classList.contains('stcet-pl-remove-row')) {
+			if (e.target.classList.contains('cpl-remove-row')) {
 				var row = e.target.closest('tr');
 				if (body.rows.length > 1) { row.remove(); } else { $all('input', row).forEach(function (i) { i.value = ''; }); }
 				updateSum();
 			}
-			if (e.target.classList.contains('stcet-pl-add-row')) {
+			if (e.target.classList.contains('cpl-add-row')) {
 				var tpl = body.rows[body.rows.length - 1].cloneNode(true);
 				$all('input', tpl).forEach(function (i) { i.value = ''; });
 				body.appendChild(tpl);
@@ -75,8 +75,8 @@
 	}
 
 	/* Upload preview: offers per company as names are edited. */
-	var names = document.querySelector('.stcet-pl-names[data-live-totals]');
-	var live = document.querySelector('.stcet-pl-live tbody');
+	var names = document.querySelector('.cpl-names[data-live-totals]');
+	var live = document.querySelector('.cpl-live tbody');
 	if (names && live) {
 		var updateLive = function () {
 			var groups = {};

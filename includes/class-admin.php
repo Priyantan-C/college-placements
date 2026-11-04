@@ -5,24 +5,24 @@
 
 defined( 'ABSPATH' ) || exit;
 
-class STCET_PL_Admin {
+class CPL_Admin {
 
-	const SLUG = 'stcet-placements';
+	const SLUG = 'college-placements';
 
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
-		foreach ( array( 'save_year', 'delete_year', 'add_year', 'upload', 'upload_confirm', 'save_names', 'import_scan', 'import_confirm' ) as $action ) {
-			add_action( 'admin_post_stcet_pl_' . $action, array( __CLASS__, 'handle_' . $action ) );
+		foreach ( array( 'save_year', 'delete_year', 'add_year', 'upload', 'upload_confirm', 'save_names', 'import_scan', 'import_confirm', 'summary_upload', 'summary_confirm', 'save_settings' ) as $action ) {
+			add_action( 'admin_post_cpl_' . $action, array( __CLASS__, 'handle_' . $action ) );
 		}
-		add_filter( 'plugin_action_links_' . plugin_basename( STCET_PL_FILE ), function ( $links ) {
+		add_filter( 'plugin_action_links_' . plugin_basename( CPL_FILE ), function ( $links ) {
 			array_unshift( $links, '<a href="' . esc_url( self::url() ) . '">Manage</a>' );
 			return $links;
 		} );
 	}
 
 	public static function cap() {
-		return apply_filters( 'stcet_placements_capability', 'manage_options' );
+		return apply_filters( 'cpl_capability', 'manage_options' );
 	}
 
 	public static function url( $page = '', $args = array() ) {
@@ -36,15 +36,167 @@ class STCET_PL_Admin {
 		add_submenu_page( self::SLUG, 'Placement years', 'Years', $cap, self::SLUG, array( __CLASS__, 'page_years' ) );
 		add_submenu_page( self::SLUG, 'Upload student list', 'Upload student list', $cap, self::SLUG . '-upload', array( __CLASS__, 'page_upload' ) );
 		add_submenu_page( self::SLUG, 'Company names', 'Company names', $cap, self::SLUG . '-names', array( __CLASS__, 'page_names' ) );
+		add_submenu_page( self::SLUG, 'Import summary workbook', 'Import summary workbook', $cap, self::SLUG . '-summary', array( __CLASS__, 'page_summary' ) );
 		add_submenu_page( self::SLUG, 'Import tables from a page', 'Import from page', $cap, self::SLUG . '-import', array( __CLASS__, 'page_import' ) );
+		add_submenu_page( self::SLUG, 'Placement settings', 'Settings', $cap, self::SLUG . '-settings', array( __CLASS__, 'page_settings' ) );
+	}
+
+	/* ---------- Settings ---------- */
+
+	public static function page_settings() {
+		$s = CPL_Settings::all();
+		?>
+		<div class="wrap cpl">
+			<h1>Placement settings</h1>
+			<?php self::show_flash(); ?>
+			<?php self::form_start( 'save_settings' ); ?>
+			<table class="form-table" role="presentation">
+				<tr><th><label for="college_name">College name</label></th>
+					<td><input type="text" id="college_name" name="college_name" value="<?php echo esc_attr( $s['college_name'] ); ?>" class="regular-text">
+					<p class="description">Used wherever a heading contains <code>{college}</code>.</p></td></tr>
+				<tr><th><label for="trend_title">Trend chart title</label></th>
+					<td><input type="text" id="trend_title" name="trend_title" value="<?php echo esc_attr( $s['trend_title'] ); ?>" class="large-text"></td></tr>
+				<tr><th><label for="year_title">Year chart title</label></th>
+					<td><input type="text" id="year_title" name="year_title" value="<?php echo esc_attr( $s['year_title'] ); ?>" class="large-text"></td></tr>
+				<tr><th><label for="records_heading">Student table heading</label></th>
+					<td><input type="text" id="records_heading" name="records_heading" value="<?php echo esc_attr( $s['records_heading'] ); ?>" class="large-text">
+					<p class="description"><code>{year}</code> is replaced by the year.</p></td></tr>
+			</table>
+			<p class="description">Leave a box empty to go back to the default. A shortcode’s own <code>title="…"</code> overrides these.</p>
+			<?php submit_button( 'Save settings' ); ?>
+			</form>
+		</div>
+		<?php
+	}
+
+	public static function handle_save_settings() {
+		self::check( 'save_settings' );
+		$values = array();
+		foreach ( array_keys( CPL_Settings::defaults() ) as $key ) {
+			$values[ $key ] = self::post( $key );
+		}
+		CPL_Settings::save( $values );
+		self::flash( 'Settings saved.' );
+		self::redirect( self::url( 'settings' ) );
+	}
+
+	/* ---------- Summary workbook import ---------- */
+
+	public static function page_summary() {
+		$token = isset( $_GET['token'] ) ? sanitize_key( $_GET['token'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		$data  = $token ? get_transient( 'cpl_summary_' . $token ) : null;
+		if ( $data && (int) $data['user'] !== get_current_user_id() ) {
+			$data = null;
+		}
+		?>
+		<div class="wrap cpl">
+			<h1>Import summary workbook</h1>
+			<?php self::show_flash(); ?>
+			<?php if ( ! $data ) : ?>
+				<div class="card cpl-wide">
+					<p>Use this to load past years when only company totals exist, not student lists. The workbook needs <strong>one sheet per year</strong>, named after the year (e.g. <code>2019</code>), with a header row like:</p>
+					<p><code>companyName</code> · <code>placements</code> · <code>Total_Students_Appeared</code> · <code>HighestPkg</code> · <code>AvgPkg</code></p>
+					<p class="description">Only the company and placements columns are required. Students appeared may sit on one row or be spread over rows; they are added up. Nothing is saved until you confirm.</p>
+					<?php self::form_start( 'summary_upload', true ); ?>
+						<p><input type="file" name="file" accept=".xlsx" required></p>
+						<?php submit_button( 'Read workbook and preview', 'primary', 'submit', false ); ?>
+					</form>
+				</div>
+			<?php else :
+				$existing = array();
+				foreach ( CPL_Data::get_years() as $y ) {
+					$existing[ $y['year'] ] = $y;
+				}
+				?>
+				<p>File: <strong><?php echo esc_html( $data['file'] ); ?></strong></p>
+				<?php if ( $data['parsed']['skipped'] ) : ?>
+					<div class="notice notice-warning inline"><p><?php echo implode( '<br>', array_map( 'esc_html', $data['parsed']['skipped'] ) ); // phpcs:ignore WordPress.Security.EscapeOutput ?></p></div>
+				<?php endif; ?>
+				<?php self::form_start( 'summary_confirm' ); ?>
+				<input type="hidden" name="token" value="<?php echo esc_attr( $token ); ?>">
+				<table class="widefat striped">
+					<thead><tr><th>Import</th><th>Year</th><th class="num">Companies</th><th class="num">Offers</th><th class="num">Students appeared</th><th>Highest pkg</th><th>Average pkg</th><th>Already on the site</th></tr></thead>
+					<tbody>
+					<?php foreach ( $data['parsed']['years'] as $i => $y ) : ?>
+						<tr>
+							<td><input type="checkbox" name="import[]" value="<?php echo esc_attr( $i ); ?>" checked></td>
+							<td><strong><?php echo esc_html( $y['year'] ); ?></strong></td>
+							<td class="num"><?php echo esc_html( count( $y['companies'] ) ); ?></td>
+							<td class="num"><?php echo esc_html( array_sum( array_column( $y['companies'], 1 ) ) ); ?></td>
+							<td class="num"><?php echo esc_html( $y['appeared'] ); ?></td>
+							<td><?php echo esc_html( $y['highest'] ); ?></td>
+							<td><?php echo esc_html( $y['avg'] ); ?></td>
+							<td><?php echo isset( $existing[ $y['year'] ] ) ? 'Yes – figures and summary numbers will be replaced' : '—'; ?></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+				<p class="description">Imported years are set to use these summary numbers in the charts. Student lists already saved for a year are kept.</p>
+				<p class="submit"><?php submit_button( 'Import ticked years', 'primary', 'submit', false ); ?>
+					<a class="button" href="<?php echo esc_url( self::url( 'summary' ) ); ?>">Cancel</a></p>
+				</form>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	public static function handle_summary_upload() {
+		self::check( 'summary_upload' );
+		$file = $_FILES['file'] ?? null; // phpcs:ignore WordPress.Security
+		if ( ! $file || UPLOAD_ERR_OK !== (int) $file['error'] || ! is_uploaded_file( $file['tmp_name'] ) || 'xlsx' !== strtolower( pathinfo( (string) $file['name'], PATHINFO_EXTENSION ) ) ) {
+			self::flash( 'Please upload an .xlsx file.', 'error' );
+			self::redirect( self::url( 'summary' ) );
+		}
+		$parsed = CPL_Summary_Import::parse( $file['tmp_name'] );
+		if ( $parsed['errors'] ) {
+			self::flash( implode( '<br>', array_map( 'esc_html', array_merge( $parsed['errors'], $parsed['skipped'] ) ) ), 'error' );
+			self::redirect( self::url( 'summary' ) );
+		}
+		$token = strtolower( wp_generate_password( 16, false ) );
+		set_transient( 'cpl_summary_' . $token, array(
+			'user'   => get_current_user_id(),
+			'file'   => sanitize_file_name( $file['name'] ),
+			'parsed' => $parsed,
+		), HOUR_IN_SECONDS );
+		self::redirect( self::url( 'summary', array( 'token' => $token ) ) );
+	}
+
+	public static function handle_summary_confirm() {
+		self::check( 'summary_confirm' );
+		$token = sanitize_key( self::post( 'token' ) );
+		$data  = get_transient( 'cpl_summary_' . $token );
+		if ( ! $data || (int) $data['user'] !== get_current_user_id() ) {
+			self::flash( 'That upload expired. Please upload the workbook again.', 'error' );
+			self::redirect( self::url( 'summary' ) );
+		}
+		$done = array();
+		foreach ( (array) self::post( 'import', array() ) as $i ) {
+			$y = $data['parsed']['years'][ (int) $i ] ?? null;
+			if ( ! $y ) {
+				continue;
+			}
+			CPL_Data::ensure_year( $y['year'], CPL_Data::SOURCE_SUM );
+			CPL_Data::update_year( $y['year'], array(
+				'students_appeared' => (int) $y['appeared'],
+				'highest_pkg'       => sanitize_text_field( $y['highest'] ),
+				'avg_pkg'           => sanitize_text_field( $y['avg'] ),
+				'chart_source'      => CPL_Data::SOURCE_SUM,
+			) );
+			CPL_Data::save_summary( $y['year'], $y['companies'] );
+			$done[] = $y['year'];
+		}
+		delete_transient( 'cpl_summary_' . $token );
+		sort( $done );
+		self::flash( $done ? sprintf( 'Imported %d years (%s).', count( $done ), implode( ', ', $done ) ) : 'Nothing imported.' );
+		self::redirect( self::url() );
 	}
 
 	public static function assets( $hook ) {
 		if ( false === strpos( (string) $hook, self::SLUG ) ) {
 			return;
 		}
-		wp_enqueue_style( 'stcet-pl-admin', STCET_PL_URL . 'assets/css/admin.css', array(), STCET_PL_VERSION );
-		wp_enqueue_script( 'stcet-pl-admin', STCET_PL_URL . 'assets/js/admin.js', array(), STCET_PL_VERSION, true );
+		wp_enqueue_style( 'cpl-admin', CPL_URL . 'assets/css/admin.css', array(), CPL_VERSION );
+		wp_enqueue_script( 'cpl-admin', CPL_URL . 'assets/js/admin.js', array(), CPL_VERSION, true );
 	}
 
 	/* ---------- Helpers ---------- */
@@ -53,15 +205,15 @@ class STCET_PL_Admin {
 		if ( ! current_user_can( self::cap() ) ) {
 			wp_die( 'You do not have permission to do this.' );
 		}
-		check_admin_referer( 'stcet_pl_' . $action );
+		check_admin_referer( 'cpl_' . $action );
 	}
 
 	private static function flash( $message, $type = 'success' ) {
-		set_transient( 'stcet_pl_flash_' . get_current_user_id(), array( $type, $message ), 120 );
+		set_transient( 'cpl_flash_' . get_current_user_id(), array( $type, $message ), 120 );
 	}
 
 	private static function show_flash() {
-		$key   = 'stcet_pl_flash_' . get_current_user_id();
+		$key   = 'cpl_flash_' . get_current_user_id();
 		$flash = get_transient( $key );
 		if ( $flash ) {
 			delete_transient( $key );
@@ -76,8 +228,8 @@ class STCET_PL_Admin {
 
 	private static function form_start( $action, $multipart = false ) {
 		printf( '<form method="post" action="%s"%s>', esc_url( admin_url( 'admin-post.php' ) ), $multipart ? ' enctype="multipart/form-data"' : '' );
-		printf( '<input type="hidden" name="action" value="stcet_pl_%s">', esc_attr( $action ) );
-		wp_nonce_field( 'stcet_pl_' . $action );
+		printf( '<input type="hidden" name="action" value="cpl_%s">', esc_attr( $action ) );
+		wp_nonce_field( 'cpl_' . $action );
 	}
 
 	private static function post( $key, $default = '' ) {
@@ -90,7 +242,7 @@ class STCET_PL_Admin {
 	}
 
 	private static function source_label( $source ) {
-		return STCET_PL_Data::SOURCE_SUM === $source ? 'Summary numbers' : 'Calculated from student list';
+		return CPL_Data::SOURCE_SUM === $source ? 'Summary numbers' : 'Calculated from student list';
 	}
 
 	/* ---------- Years list ---------- */
@@ -100,18 +252,18 @@ class STCET_PL_Admin {
 			self::page_year_edit( self::year_param() );
 			return;
 		}
-		$years   = STCET_PL_Data::get_years();
-		$counts  = STCET_PL_Data::record_counts_by_year();
-		$aliases = STCET_PL_Data::get_aliases();
+		$years   = CPL_Data::get_years();
+		$counts  = CPL_Data::record_counts_by_year();
+		$aliases = CPL_Data::get_aliases();
 		?>
-		<div class="wrap stcet-pl">
+		<div class="wrap cpl">
 			<h1 class="wp-heading-inline">Placement years</h1>
 			<a class="page-title-action" href="<?php echo esc_url( self::url( 'upload' ) ); ?>">Upload student list</a>
 			<hr class="wp-header-end">
 			<?php self::show_flash(); ?>
 
-			<div class="stcet-pl-columns">
-				<div class="stcet-pl-main">
+			<div class="cpl-columns">
+				<div class="cpl-main">
 					<table class="widefat striped">
 						<thead><tr>
 							<th>Year</th><th>Charts use</th><th class="num">Offers</th><th class="num">Students appeared</th>
@@ -119,10 +271,14 @@ class STCET_PL_Admin {
 						</tr></thead>
 						<tbody>
 						<?php if ( ! $years ) : ?>
-							<tr><td colspan="8">No years yet.</td></tr>
+							<tr><td colspan="8">No years yet. Start with one of these:
+								<a href="<?php echo esc_url( self::url( 'upload' ) ); ?>">upload a student list</a>,
+								<a href="<?php echo esc_url( self::url( 'summary' ) ); ?>">import a summary workbook</a> for past years, or
+								<a href="<?php echo esc_url( self::url( 'import' ) ); ?>">import tables from an existing page</a>.
+								Set the college name under <a href="<?php echo esc_url( self::url( 'settings' ) ); ?>">Settings</a>.</td></tr>
 						<?php endif; ?>
 						<?php foreach ( $years as $y ) :
-							$total = array_sum( array_column( STCET_PL_Data::breakdown( $y, $aliases ), 1 ) );
+							$total = array_sum( array_column( CPL_Data::breakdown( $y, $aliases ), 1 ) );
 							?>
 							<tr>
 								<td><strong><a href="<?php echo esc_url( self::url( '', array( 'year' => $y['year'] ) ) ); ?>"><?php echo esc_html( $y['year'] ); ?></a></strong></td>
@@ -139,7 +295,7 @@ class STCET_PL_Admin {
 					</table>
 				</div>
 
-				<div class="stcet-pl-side">
+				<div class="cpl-side">
 					<div class="card">
 						<h2>Add a year</h2>
 						<?php self::form_start( 'add_year' ); ?>
@@ -149,9 +305,9 @@ class STCET_PL_Admin {
 					</div>
 					<div class="card">
 						<h2>Shortcodes</h2>
-						<p><code>[stcet_placement_trend]</code><br>Placements over the years (stacked bars and total lines).</p>
-						<p><code>[stcet_placement_year]</code><br>Year picker, pie chart, totals and company table.</p>
-						<p><code>[stcet_placement_records]</code><br>Year-wise student tables. Options: <code>years="2026,2025"</code>, <code>open="first"</code> (or <code>all</code> / <code>none</code>).</p>
+						<p><code>[placement_trend]</code><br>Placements over the years (stacked bars and total lines).</p>
+						<p><code>[placement_year]</code><br>Year picker, pie chart, totals and company table.</p>
+						<p><code>[placement_records]</code><br>Year-wise student tables. Options: <code>years="2026,2025"</code>, <code>open="first"</code> (or <code>all</code> / <code>none</code>).</p>
 					</div>
 				</div>
 			</div>
@@ -166,7 +322,7 @@ class STCET_PL_Admin {
 			self::flash( 'Enter a year between 1990 and 2100.', 'error' );
 			self::redirect( self::url() );
 		}
-		STCET_PL_Data::ensure_year( $year );
+		CPL_Data::ensure_year( $year );
 		self::flash( sprintf( 'Year %d added. Upload its student list next.', $year ) );
 		self::redirect( self::url( 'upload', array( 'year' => $year ) ) );
 	}
@@ -174,23 +330,23 @@ class STCET_PL_Admin {
 	/* ---------- Year settings ---------- */
 
 	private static function page_year_edit( $year ) {
-		$y = STCET_PL_Data::get_year( $year );
+		$y = CPL_Data::get_year( $year );
 		if ( ! $y ) {
 			echo '<div class="wrap"><h1>Year not found</h1><p><a href="' . esc_url( self::url() ) . '">Back to years</a></p></div>';
 			return;
 		}
-		$aliases   = STCET_PL_Data::get_aliases();
-		$records   = STCET_PL_Data::get_records( $year );
-		$counts    = STCET_PL_Data::company_counts( $records, $aliases );
-		$summary   = STCET_PL_Data::get_summary( $year );
+		$aliases   = CPL_Data::get_aliases();
+		$records   = CPL_Data::get_records( $year );
+		$counts    = CPL_Data::company_counts( $records, $aliases );
+		$summary   = CPL_Data::get_summary( $year );
 		$featured  = $y['featured'];
 		$all_shown = empty( $featured );
-		$feat_keys = array_map( array( 'STCET_PL_Data', 'key' ), $featured );
+		$feat_keys = array_map( array( 'CPL_Data', 'key' ), $featured );
 		$calc_total = count( $records );
 		$sum_total  = array_sum( array_column( $summary, 1 ) );
-		$is_summary = STCET_PL_Data::SOURCE_SUM === $y['chart_source'];
+		$is_summary = CPL_Data::SOURCE_SUM === $y['chart_source'];
 		?>
-		<div class="wrap stcet-pl">
+		<div class="wrap cpl">
 			<h1><?php echo esc_html( $year ); ?> placement settings</h1>
 			<p><a href="<?php echo esc_url( self::url() ); ?>">&larr; All years</a></p>
 			<?php self::show_flash(); ?>
@@ -213,7 +369,7 @@ class STCET_PL_Admin {
 			</table>
 
 			<h2>What the charts use</h2>
-			<fieldset class="stcet-pl-source">
+			<fieldset class="cpl-source">
 				<label><input type="radio" name="chart_source" value="records" <?php checked( ! $is_summary ); ?> <?php disabled( ! $records && ! $is_summary ); ?>>
 					<strong>Calculated from the student list</strong> (<?php echo esc_html( $calc_total ); ?> offers in <?php echo esc_html( count( $records ) ); ?> rows)</label><br>
 				<label><input type="radio" name="chart_source" value="summary" <?php checked( $is_summary ); ?>>
@@ -221,21 +377,21 @@ class STCET_PL_Admin {
 				<?php if ( ! $records ) : ?>
 					<p class="description">No student list for this year yet. <a href="<?php echo esc_url( self::url( 'upload', array( 'year' => $year ) ) ); ?>">Upload one</a>.</p>
 				<?php elseif ( $summary && $calc_total !== $sum_total ) : ?>
-					<p class="description stcet-pl-warn">The student list has <?php echo esc_html( $calc_total ); ?> offers but the summary has <?php echo esc_html( $sum_total ); ?>.</p>
+					<p class="description cpl-warn">The student list has <?php echo esc_html( $calc_total ); ?> offers but the summary has <?php echo esc_html( $sum_total ); ?>.</p>
 				<?php endif; ?>
 			</fieldset>
 
 			<?php if ( $records ) : ?>
-			<div class="stcet-pl-panel" data-panel="records">
+			<div class="cpl-panel" data-panel="records">
 				<h3>Companies shown separately</h3>
 				<p class="description">Tick the companies that get their own row. Everything unticked is added up into <strong>Others</strong>.
-					<a href="#" data-stcet-check="all">Tick all</a> · <a href="#" data-stcet-check="none">Untick all</a></p>
-				<table class="widefat striped stcet-pl-featured">
+					<a href="#" data-cpl-check="all">Tick all</a> · <a href="#" data-cpl-check="none">Untick all</a></p>
+				<table class="widefat striped cpl-featured">
 					<thead><tr><th class="check-column"></th><th>Company</th><th class="num">Offers</th><th>Spellings in the list</th></tr></thead>
 					<tbody>
 					<?php foreach ( $counts as $company => $c ) :
-						$is_others = 'others' === STCET_PL_Data::key( $company );
-						$checked   = ! $is_others && ( $all_shown || in_array( STCET_PL_Data::key( $company ), $feat_keys, true ) );
+						$is_others = 'others' === CPL_Data::key( $company );
+						$checked   = ! $is_others && ( $all_shown || in_array( CPL_Data::key( $company ), $feat_keys, true ) );
 						$spell     = array();
 						foreach ( $c['spellings'] as $s => $n ) {
 							$spell[] = $s . ' (' . $n . ')';
@@ -249,27 +405,27 @@ class STCET_PL_Admin {
 						</tr>
 					<?php endforeach; ?>
 					</tbody>
-					<tfoot><tr><td></td><td colspan="3" class="stcet-pl-totals" data-total="<?php echo esc_attr( $calc_total ); ?>"></td></tr></tfoot>
+					<tfoot><tr><td></td><td colspan="3" class="cpl-totals" data-total="<?php echo esc_attr( $calc_total ); ?>"></td></tr></tfoot>
 				</table>
 				<p class="description">Names look wrong or split? Fix them under <a href="<?php echo esc_url( self::url( 'names' ) ); ?>">Company names</a>.</p>
 			</div>
 			<?php endif; ?>
 
-			<div class="stcet-pl-panel" data-panel="summary">
+			<div class="cpl-panel" data-panel="summary">
 				<h3>Summary numbers</h3>
 				<p class="description">Used only when the charts are set to “Summary numbers”. Rows with an empty company name are removed.</p>
-				<table class="widefat stcet-pl-summary">
+				<table class="widefat cpl-summary">
 					<thead><tr><th>Company</th><th class="num">Offers</th><th></th></tr></thead>
 					<tbody>
 					<?php foreach ( array_merge( $summary, array( array( '', '' ) ) ) as $row ) : ?>
 						<tr>
 							<td><input type="text" name="summary_company[]" value="<?php echo esc_attr( $row[0] ); ?>" class="regular-text"></td>
 							<td class="num"><input type="number" min="0" name="summary_offers[]" value="<?php echo esc_attr( $row[1] ); ?>" class="small-text"></td>
-							<td><button type="button" class="button-link stcet-pl-remove-row">Remove</button></td>
+							<td><button type="button" class="button-link cpl-remove-row">Remove</button></td>
 						</tr>
 					<?php endforeach; ?>
 					</tbody>
-					<tfoot><tr><td><button type="button" class="button stcet-pl-add-row">Add row</button></td><td class="num stcet-pl-sum-total"></td><td></td></tr></tfoot>
+					<tfoot><tr><td><button type="button" class="button cpl-add-row">Add row</button></td><td class="num cpl-sum-total"></td><td></td></tr></tfoot>
 				</table>
 			</div>
 
@@ -294,25 +450,25 @@ class STCET_PL_Admin {
 	public static function handle_save_year() {
 		self::check( 'save_year' );
 		$year = self::year_param();
-		if ( ! $year || ! STCET_PL_Data::get_year( $year ) ) {
+		if ( ! $year || ! CPL_Data::get_year( $year ) ) {
 			self::redirect( self::url() );
 		}
 
-		$source = STCET_PL_Data::SOURCE_SUM === self::post( 'chart_source' ) ? STCET_PL_Data::SOURCE_SUM : STCET_PL_Data::SOURCE_REC;
+		$source = CPL_Data::SOURCE_SUM === self::post( 'chart_source' ) ? CPL_Data::SOURCE_SUM : CPL_Data::SOURCE_REC;
 
 		// Featured companies: if every company is ticked, store an empty list so new companies show up too.
-		$featured = array_map( array( 'STCET_PL_Data', 'clean' ), (array) self::post( 'featured', array() ) );
-		$counts   = STCET_PL_Data::company_counts( STCET_PL_Data::get_records( $year ) );
+		$featured = array_map( array( 'CPL_Data', 'clean' ), (array) self::post( 'featured', array() ) );
+		$counts   = CPL_Data::company_counts( CPL_Data::get_records( $year ) );
 		$all      = array_filter( array_keys( $counts ), function ( $c ) {
-			return 'others' !== STCET_PL_Data::key( $c );
+			return 'others' !== CPL_Data::key( $c );
 		} );
-		if ( count( array_intersect( array_map( array( 'STCET_PL_Data', 'key' ), $all ), array_map( array( 'STCET_PL_Data', 'key' ), $featured ) ) ) === count( $all ) ) {
+		if ( count( array_intersect( array_map( array( 'CPL_Data', 'key' ), $all ), array_map( array( 'CPL_Data', 'key' ), $featured ) ) ) === count( $all ) ) {
 			$featured = array();
 		} elseif ( ! $featured ) {
-			$featured = array( STCET_PL_Data::OTHERS ); // Nothing ticked: everything goes into Others.
+			$featured = array( CPL_Data::OTHERS ); // Nothing ticked: everything goes into Others.
 		}
 
-		STCET_PL_Data::update_year( $year, array(
+		CPL_Data::update_year( $year, array(
 			'students_appeared' => absint( self::post( 'students_appeared', 0 ) ),
 			'highest_pkg'       => sanitize_text_field( self::post( 'highest_pkg' ) ),
 			'avg_pkg'           => sanitize_text_field( self::post( 'avg_pkg' ) ),
@@ -331,7 +487,7 @@ class STCET_PL_Admin {
 				$rows[] = array( $name, absint( $offers[ $i ] ?? 0 ) );
 			}
 		}
-		STCET_PL_Data::save_summary( $year, $rows );
+		CPL_Data::save_summary( $year, $rows );
 
 		self::flash( sprintf( '%d saved. The charts on the site are updated.', $year ) );
 		self::redirect( self::url( '', array( 'year' => $year ) ) );
@@ -341,7 +497,7 @@ class STCET_PL_Admin {
 		self::check( 'delete_year' );
 		$year = self::year_param();
 		if ( $year ) {
-			STCET_PL_Data::delete_year( $year );
+			CPL_Data::delete_year( $year );
 			self::flash( sprintf( '%d deleted.', $year ) );
 		}
 		self::redirect( self::url() );
@@ -356,12 +512,12 @@ class STCET_PL_Admin {
 			return;
 		}
 		$year     = self::year_param() ?: (int) gmdate( 'Y' );
-		$existing = STCET_PL_Data::get_year( $year );
+		$existing = CPL_Data::get_year( $year );
 		?>
-		<div class="wrap stcet-pl">
+		<div class="wrap cpl">
 			<h1>Upload student list</h1>
 			<?php self::show_flash(); ?>
-			<div class="card stcet-pl-wide">
+			<div class="card cpl-wide">
 				<?php self::form_start( 'upload', true ); ?>
 				<table class="form-table" role="presentation">
 					<tr><th><label for="year">Placement year</label></th>
@@ -375,7 +531,7 @@ class STCET_PL_Admin {
 				<?php submit_button( 'Read file and preview' ); ?>
 				</form>
 			</div>
-			<div class="card stcet-pl-wide">
+			<div class="card cpl-wide">
 				<h2>What the file needs</h2>
 				<p>One row per offer, with a header row containing at least <strong>Name</strong> and <strong>Org</strong> (or Organization / Company). <strong>Sl No</strong>, <strong>Dept</strong> and <strong>U R N</strong> (or University Roll Number) are picked up when present. A title row above the header is fine.</p>
 				<p>Nothing is saved until you confirm on the next screen. Confirming replaces that year’s whole student list.</p>
@@ -402,14 +558,14 @@ class STCET_PL_Admin {
 			self::redirect( $back );
 		}
 
-		$parsed = STCET_PL_Xlsx_Import::parse( $file['tmp_name'] );
+		$parsed = CPL_Xlsx_Import::parse( $file['tmp_name'] );
 		if ( $parsed['errors'] || ! $parsed['rows'] ) {
 			self::flash( implode( '<br>', array_map( 'esc_html', $parsed['errors'] ?: array( 'No student rows were found in the file.' ) ) ), 'error' );
 			self::redirect( $back );
 		}
 
 		$token = strtolower( wp_generate_password( 16, false ) );
-		set_transient( 'stcet_pl_upload_' . $token, array(
+		set_transient( 'cpl_upload_' . $token, array(
 			'user'     => get_current_user_id(),
 			'year'     => $year,
 			'file'     => sanitize_file_name( $file['name'] ),
@@ -420,7 +576,7 @@ class STCET_PL_Admin {
 	}
 
 	private static function get_upload( $token ) {
-		$data = get_transient( 'stcet_pl_upload_' . $token );
+		$data = get_transient( 'cpl_upload_' . $token );
 		return ( $data && (int) $data['user'] === get_current_user_id() ) ? $data : null;
 	}
 
@@ -432,9 +588,9 @@ class STCET_PL_Admin {
 		}
 		$year     = $data['year'];
 		$rows     = $data['parsed']['rows'];
-		$aliases  = STCET_PL_Data::get_aliases();
-		$existing = STCET_PL_Data::get_records( $year );
-		$year_row = STCET_PL_Data::get_year( $year );
+		$aliases  = CPL_Data::get_aliases();
+		$existing = CPL_Data::get_records( $year );
+		$year_row = CPL_Data::get_year( $year );
 
 		$depts = array();
 		foreach ( $rows as $r ) {
@@ -446,13 +602,13 @@ class STCET_PL_Admin {
 			return $n > 1;
 		} ) );
 
-		$counts = STCET_PL_Data::company_counts( $rows, $aliases );
+		$counts = CPL_Data::company_counts( $rows, $aliases );
 		?>
-		<div class="wrap stcet-pl">
+		<div class="wrap cpl">
 			<h1>Check the <?php echo esc_html( $year ); ?> student list</h1>
 			<?php self::show_flash(); ?>
 
-			<div class="stcet-pl-facts">
+			<div class="cpl-facts">
 				<div><span>File</span><strong><?php echo esc_html( $data['file'] ); ?></strong></div>
 				<div><span>Sheet</span><strong><?php echo esc_html( $data['parsed']['sheet'] ); ?></strong></div>
 				<?php if ( $data['parsed']['title'] ) : ?><div><span>Title row</span><strong><?php echo esc_html( $data['parsed']['title'] ); ?></strong></div><?php endif; ?>
@@ -478,7 +634,7 @@ class STCET_PL_Admin {
 			<?php if ( $existing ) : ?>
 				<div class="notice notice-info inline"><p>Confirming replaces the <?php echo esc_html( count( $existing ) ); ?> rows already saved for <?php echo esc_html( $year ); ?>.</p></div>
 			<?php endif; ?>
-			<?php if ( $year_row && STCET_PL_Data::SOURCE_SUM === $year_row['chart_source'] ) : ?>
+			<?php if ( $year_row && CPL_Data::SOURCE_SUM === $year_row['chart_source'] ) : ?>
 				<div class="notice notice-info inline"><p><?php echo esc_html( $year ); ?> charts currently use summary numbers, so this upload updates the student table only. You can switch the charts to the student list in the year’s settings.</p></div>
 			<?php endif; ?>
 
@@ -487,20 +643,20 @@ class STCET_PL_Admin {
 
 			<h2>Company names</h2>
 			<p class="description">Each spelling in the file and the company it counts towards. Change the company to merge spellings (for example CTS → Cognizant). Matches are remembered for future uploads.</p>
-			<div class="stcet-pl-columns">
-				<div class="stcet-pl-main">
-					<table class="widefat striped stcet-pl-names" data-live-totals="1">
+			<div class="cpl-columns">
+				<div class="cpl-main">
+					<table class="widefat striped cpl-names" data-live-totals="1">
 						<thead><tr><th>Spelling in file</th><th class="num">Rows</th><th>Counts as company</th><th></th></tr></thead>
 						<tbody>
 						<?php foreach ( $counts as $company => $c ) :
 							foreach ( $c['spellings'] as $spelling => $n ) :
-								$matched = STCET_PL_Data::is_matched( $spelling, $aliases );
+								$matched = CPL_Data::is_matched( $spelling, $aliases );
 								?>
-								<tr class="<?php echo $matched ? '' : 'stcet-pl-new'; ?>">
+								<tr class="<?php echo $matched ? '' : 'cpl-new'; ?>">
 									<td><?php echo esc_html( $spelling ); ?><input type="hidden" name="spelling[]" value="<?php echo esc_attr( $spelling ); ?>"></td>
 									<td class="num" data-rows="<?php echo esc_attr( $n ); ?>"><?php echo esc_html( $n ); ?></td>
-									<td><input type="text" name="company[]" value="<?php echo esc_attr( $company ); ?>" class="regular-text" list="stcet-pl-companies"></td>
-									<td><?php echo $matched ? '<span class="stcet-pl-tag">saved match</span>' : '<span class="stcet-pl-tag stcet-pl-tag-new">new name</span>'; ?></td>
+									<td><input type="text" name="company[]" value="<?php echo esc_attr( $company ); ?>" class="regular-text" list="cpl-companies"></td>
+									<td><?php echo $matched ? '<span class="cpl-tag">saved match</span>' : '<span class="cpl-tag cpl-tag-new">new name</span>'; ?></td>
 								</tr>
 							<?php endforeach;
 						endforeach; ?>
@@ -508,10 +664,10 @@ class STCET_PL_Admin {
 					</table>
 					<?php self::company_datalist( $aliases ); ?>
 				</div>
-				<div class="stcet-pl-side">
+				<div class="cpl-side">
 					<div class="card">
 						<h2>Offers per company</h2>
-						<table class="widefat stcet-pl-live"><tbody></tbody></table>
+						<table class="widefat cpl-live"><tbody></tbody></table>
 					</div>
 				</div>
 			</div>
@@ -538,7 +694,7 @@ class STCET_PL_Admin {
 	private static function company_datalist( $aliases ) {
 		$companies = array_unique( array_column( $aliases, 'company' ) );
 		sort( $companies );
-		echo '<datalist id="stcet-pl-companies">';
+		echo '<datalist id="cpl-companies">';
 		foreach ( $companies as $c ) {
 			echo '<option value="' . esc_attr( $c ) . '">';
 		}
@@ -551,16 +707,16 @@ class STCET_PL_Admin {
 		$companies = (array) self::post( 'company', array() );
 		$changed   = 0;
 		foreach ( $spellings as $i => $spelling ) {
-			$spelling = STCET_PL_Data::clean( sanitize_text_field( $spelling ) );
-			$company  = STCET_PL_Data::clean( sanitize_text_field( $companies[ $i ] ?? '' ) );
-			$key      = STCET_PL_Data::key( $spelling );
+			$spelling = CPL_Data::clean( sanitize_text_field( $spelling ) );
+			$company  = CPL_Data::clean( sanitize_text_field( $companies[ $i ] ?? '' ) );
+			$key      = CPL_Data::key( $spelling );
 			if ( '' === $key ) {
 				continue;
 			}
 			$current = $aliases[ $key ]['company'] ?? null;
 			if ( '' === $company ) {
 				if ( null !== $current ) {
-					STCET_PL_Data::delete_alias( $key );
+					CPL_Data::delete_alias( $key );
 					$changed++;
 				}
 				continue;
@@ -571,7 +727,7 @@ class STCET_PL_Admin {
 			if ( null === $current && $company === $spelling ) {
 				continue; // Plain name, nothing to remember.
 			}
-			STCET_PL_Data::save_alias( $spelling, $company );
+			CPL_Data::save_alias( $spelling, $company );
 			$aliases[ $key ] = array( 'company' => $company );
 			$changed++;
 		}
@@ -587,13 +743,13 @@ class STCET_PL_Admin {
 			self::redirect( self::url( 'upload' ) );
 		}
 		$year = (int) $data['year'];
-		self::save_name_matches( STCET_PL_Data::get_aliases() );
-		STCET_PL_Data::ensure_year( $year );
-		STCET_PL_Data::replace_records( $year, $data['parsed']['rows'] );
+		self::save_name_matches( CPL_Data::get_aliases() );
+		CPL_Data::ensure_year( $year );
+		CPL_Data::replace_records( $year, $data['parsed']['rows'] );
 		if ( '' !== $data['note'] ) {
-			STCET_PL_Data::update_year( $year, array( 'records_note' => $data['note'] ) );
+			CPL_Data::update_year( $year, array( 'records_note' => $data['note'] ) );
 		}
-		delete_transient( 'stcet_pl_upload_' . $token );
+		delete_transient( 'cpl_upload_' . $token );
 
 		self::flash( sprintf( 'Saved %d rows for %d. Now check the figures and choose which companies are shown separately.', count( $data['parsed']['rows'] ), $year ) );
 		self::redirect( self::url( '', array( 'year' => $year ) ) );
@@ -603,13 +759,13 @@ class STCET_PL_Admin {
 
 	public static function page_names() {
 		global $wpdb;
-		$aliases = STCET_PL_Data::get_aliases();
-		$rows    = $wpdb->get_results( 'SELECT org, year, COUNT(*) AS n FROM ' . STCET_PL_DB::table( 'records' ) . ' GROUP BY org, year ORDER BY org', ARRAY_A );
+		$aliases = CPL_Data::get_aliases();
+		$rows    = $wpdb->get_results( 'SELECT org, year, COUNT(*) AS n FROM ' . CPL_DB::table( 'records' ) . ' GROUP BY org, year ORDER BY org', ARRAY_A );
 
 		// Group spellings (case/space/punctuation-insensitive) with the years they appear in.
 		$spellings = array();
 		foreach ( (array) $rows as $r ) {
-			$key = STCET_PL_Data::key( $r['org'] );
+			$key = CPL_Data::key( $r['org'] );
 			if ( '' === $key ) {
 				continue;
 			}
@@ -626,7 +782,7 @@ class STCET_PL_Admin {
 		}
 		$seen = array();
 		foreach ( $spellings as $key => &$s ) {
-			$s['company'] = STCET_PL_Data::resolve( $s['spelling'], $aliases, $seen );
+			$s['company'] = CPL_Data::resolve( $s['spelling'], $aliases, $seen );
 			$s['matched'] = isset( $aliases[ $key ] );
 		}
 		unset( $s );
@@ -634,12 +790,12 @@ class STCET_PL_Admin {
 			return strcasecmp( $a['company'] . ' ' . $a['spelling'], $b['company'] . ' ' . $b['spelling'] );
 		} );
 		?>
-		<div class="wrap stcet-pl">
+		<div class="wrap cpl">
 			<h1>Company names</h1>
 			<?php self::show_flash(); ?>
 			<p>Every company spelling used in the student lists, and the company it is counted as in the charts. Spellings that differ only in capitals, spaces or brackets (TCS(D) and TCS (D)) are already treated as the same. Clear the company box to forget a match.</p>
 			<?php self::form_start( 'save_names' ); ?>
-			<table class="widefat striped stcet-pl-names">
+			<table class="widefat striped cpl-names">
 				<thead><tr><th>Spelling</th><th>Used in</th><th class="num">Rows</th><th>Counts as company</th></tr></thead>
 				<tbody>
 				<?php foreach ( $spellings as $s ) :
@@ -650,13 +806,13 @@ class STCET_PL_Admin {
 						<td><?php echo esc_html( $s['spelling'] ); ?><input type="hidden" name="spelling[]" value="<?php echo esc_attr( $s['spelling'] ); ?>"></td>
 						<td><?php echo esc_html( implode( ', ', $years ) ); ?></td>
 						<td class="num"><?php echo esc_html( $s['n'] ); ?></td>
-						<td><input type="text" name="company[]" value="<?php echo esc_attr( $s['matched'] ? $s['company'] : '' ); ?>" placeholder="<?php echo esc_attr( $s['company'] ); ?>" class="regular-text" list="stcet-pl-companies"></td>
+						<td><input type="text" name="company[]" value="<?php echo esc_attr( $s['matched'] ? $s['company'] : '' ); ?>" placeholder="<?php echo esc_attr( $s['company'] ); ?>" class="regular-text" list="cpl-companies"></td>
 					</tr>
 				<?php endforeach; ?>
-				<tr class="stcet-pl-add">
+				<tr class="cpl-add">
 					<td><input type="text" name="spelling[]" placeholder="New spelling, e.g. TCS Digital" class="regular-text"></td>
 					<td></td><td></td>
-					<td><input type="text" name="company[]" placeholder="Company, e.g. TCS" class="regular-text" list="stcet-pl-companies"></td>
+					<td><input type="text" name="company[]" placeholder="Company, e.g. TCS" class="regular-text" list="cpl-companies"></td>
 				</tr>
 				</tbody>
 			</table>
@@ -669,7 +825,7 @@ class STCET_PL_Admin {
 
 	public static function handle_save_names() {
 		self::check( 'save_names' );
-		$changed = self::save_name_matches( STCET_PL_Data::get_aliases() );
+		$changed = self::save_name_matches( CPL_Data::get_aliases() );
 		self::flash( $changed ? sprintf( '%d name match(es) saved. The charts are updated.', $changed ) : 'No changes.' );
 		self::redirect( self::url( 'names' ) );
 	}
@@ -678,14 +834,14 @@ class STCET_PL_Admin {
 
 	public static function page_import() {
 		$token = isset( $_GET['token'] ) ? sanitize_key( $_GET['token'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
-		$scan  = $token ? get_transient( 'stcet_pl_scan_' . $token ) : null;
+		$scan  = $token ? get_transient( 'cpl_scan_' . $token ) : null;
 		if ( $scan && (int) $scan['user'] !== get_current_user_id() ) {
 			$scan = null;
 		}
 		$default = get_page_by_path( 'placements/placement-data' ) ?: get_page_by_path( 'placement-data' );
-		$counts  = STCET_PL_Data::record_counts_by_year();
+		$counts  = CPL_Data::record_counts_by_year();
 		?>
-		<div class="wrap stcet-pl">
+		<div class="wrap cpl">
 			<h1>Import tables from a page</h1>
 			<?php self::show_flash(); ?>
 			<p>Reads the student tables already typed into a WordPress page (such as Placement Data) and saves them as student lists. Each table takes the year from the “2026 Placement Data” style heading above it. The page itself is not changed.</p>
@@ -720,7 +876,7 @@ class STCET_PL_Admin {
 							<td><input type="checkbox" name="import[]" value="<?php echo esc_attr( $i ); ?>" <?php checked( $tick ); ?>></td>
 							<td><?php echo esc_html( $i + 1 ); ?></td>
 							<td><input type="number" name="year[<?php echo esc_attr( $i ); ?>]" value="<?php echo esc_attr( $t['year'] ); ?>" class="small-text" min="1990" max="2100">
-								<?php if ( ! $t['year'] ) : ?><br><span class="stcet-pl-warn">No year heading</span><?php endif; ?></td>
+								<?php if ( ! $t['year'] ) : ?><br><span class="cpl-warn">No year heading</span><?php endif; ?></td>
 							<td class="num"><?php echo esc_html( count( $t['rows'] ) ); ?></td>
 							<td class="description"><?php echo esc_html( $first['name'] . ' – ' . $first['org'] ); ?><br><?php echo esc_html( $last['name'] . ' – ' . $last['org'] ); ?></td>
 							<td class="description"><?php echo esc_html( $t['note'] ); ?></td>
@@ -747,10 +903,10 @@ class STCET_PL_Admin {
 			self::redirect( self::url( 'import' ) );
 		}
 		$token = strtolower( wp_generate_password( 16, false ) );
-		set_transient( 'stcet_pl_scan_' . $token, array(
+		set_transient( 'cpl_scan_' . $token, array(
 			'user'    => get_current_user_id(),
 			'page_id' => $page_id,
-			'tables'  => STCET_PL_Page_Import::scan( $post->post_content ),
+			'tables'  => CPL_Page_Import::scan( $post->post_content ),
 		), HOUR_IN_SECONDS );
 		self::redirect( self::url( 'import', array( 'token' => $token ) ) );
 	}
@@ -758,7 +914,7 @@ class STCET_PL_Admin {
 	public static function handle_import_confirm() {
 		self::check( 'import_confirm' );
 		$token = sanitize_key( self::post( 'token' ) );
-		$scan  = get_transient( 'stcet_pl_scan_' . $token );
+		$scan  = get_transient( 'cpl_scan_' . $token );
 		if ( ! $scan || (int) $scan['user'] !== get_current_user_id() ) {
 			self::flash( 'That scan expired. Please find the tables again.', 'error' );
 			self::redirect( self::url( 'import' ) );
@@ -781,16 +937,16 @@ class STCET_PL_Admin {
 				$errors[] = sprintf( 'Table %d is also marked %d, so it was skipped.', $i + 1, $year );
 				continue;
 			}
-			$source = STCET_PL_Data::get_summary( $year ) ? STCET_PL_Data::SOURCE_SUM : STCET_PL_Data::SOURCE_REC;
-			STCET_PL_Data::ensure_year( $year, $source );
-			STCET_PL_Data::replace_records( $year, $table['rows'] );
-			$y = STCET_PL_Data::get_year( $year );
+			$source = CPL_Data::get_summary( $year ) ? CPL_Data::SOURCE_SUM : CPL_Data::SOURCE_REC;
+			CPL_Data::ensure_year( $year, $source );
+			CPL_Data::replace_records( $year, $table['rows'] );
+			$y = CPL_Data::get_year( $year );
 			if ( '' !== $table['note'] && '' === $y['records_note'] ) {
-				STCET_PL_Data::update_year( $year, array( 'records_note' => $table['note'] ) );
+				CPL_Data::update_year( $year, array( 'records_note' => $table['note'] ) );
 			}
 			$done[ $year ] = count( $table['rows'] );
 		}
-		delete_transient( 'stcet_pl_scan_' . $token );
+		delete_transient( 'cpl_scan_' . $token );
 
 		$parts = array();
 		foreach ( $done as $year => $n ) {

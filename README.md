@@ -1,12 +1,22 @@
-# STCET Placements
+# College Placements
 
-WordPress plugin that draws the placement charts and the year-wise student placement tables on the STCET website. It replaces the old Netlify app and the hand-made tables.
+WordPress plugin that draws placement charts and year-wise student placement tables for a college website. Staff upload one Excel file per year; the plugin does the counting. It ships with no data, so any college can use it.
 
-## How staff use it
+## Getting started on a new site
 
-1. **Placements → Upload student list**: pick the year and upload the Excel file (columns `Sl No`, `Dept`, `Name`, `U R N`, `Org`; a title row above the header is fine).
-2. Check the preview. Change the "Counts as company" box to merge spellings (e.g. `CTS` → `Cognizant`). Matches are remembered.
-3. Save. On the year's settings page, fill in students appeared, highest and average package, and tick the companies shown separately. The rest go into **Others**.
+1. Install and activate the plugin.
+2. **Placements → Settings**: set the college name. Chart titles use it, e.g. "Placements in {college} over the years".
+3. Load data in any of these ways:
+   * **Upload student list**: one year's list of offers (see below).
+   * **Import summary workbook**: past years with company totals only, one sheet per year.
+   * **Import from page**: student tables already typed into a WordPress page.
+4. Add the shortcodes to your pages.
+
+## Yearly routine for staff
+
+1. **Placements → Upload student list**: pick the year and upload the Excel file. It needs a header row with at least `Name` and `Org` (or Organization / Company). `Sl No`, `Dept` and `U R N` (or University Roll Number) are used when present. A title row above the header is fine.
+2. Check the preview. Change the "Counts as company" box to merge spellings (e.g. `CTS` → `Cognizant`). Matches are remembered for later uploads.
+3. Save. On the year's page, fill in students appeared, highest and average package, and tick the companies shown separately. The rest go into **Others**.
 
 The charts and tables update immediately.
 
@@ -14,27 +24,32 @@ The charts and tables update immediately.
 
 | Shortcode | What it shows |
 |---|---|
-| `[stcet_placement_trend]` | Placements over the years: stacked bars per company, Total Placements and Total Students Appeared lines |
-| `[stcet_placement_year]` | Year picker, pie chart, totals and company table (`year="2026"` to start on a year) |
-| `[stcet_placement_records]` | Year-wise student tables (`years="2026,2025"`, `open="first"`, `"all"` or `"none"`) |
+| `[placement_trend]` | Placements over the years: stacked bars per company, plus Total Placements and Total Students Appeared lines |
+| `[placement_year]` | Year picker, pie chart, totals and company table (`year="2026"` to start on a given year) |
+| `[placement_records]` | Year-wise student tables (`years="2026,2025"`, `open="first"`, `"all"` or `"none"`) |
+
+`[placement_trend]` and `[placement_year]` also accept `title="…"`.
+
+## Summary workbook format
+
+One sheet per year, named after the year. Header row: `companyName`, `placements`, `Total_Students_Appeared`, `HighestPkg`, `AvgPkg`. Only the company and placements columns are required, and common variants such as "Company" or "Offers" also work.
 
 ## Data
 
-* 2010–2026 company figures come from the vendor's v5 workbook (`data/summary-seed.json`), loaded on first activation.
-* Each year has a **Charts use** setting: *Summary numbers* (typed in or from v5) or *Calculated from student list*. New years default to calculated.
-* **Placements → Import from page** reads student tables already typed into a page (one-time move of the old Placement Data tables).
-* Data lives in four tables: `wp_stcet_pl_years`, `wp_stcet_pl_summary`, `wp_stcet_pl_records`, `wp_stcet_pl_aliases`. Deactivating or deleting the plugin does not remove them.
+* Each year has a **Charts use** setting: *Summary numbers* (from a workbook or typed in) or *Calculated from student list*. New years default to calculated.
+* Data lives in four tables: `wp_cpl_years`, `wp_cpl_summary`, `wp_cpl_records` and `wp_cpl_aliases`. Deactivating or deleting the plugin keeps them.
+* Who can manage the data: administrators by default. You can change this with the `cpl_capability` filter.
 
 ## Releasing an update
 
-Sites check this repo's `main` branch (via [Plugin Update Checker](https://github.com/YahnisElsts/plugin-update-checker)). An update is offered only when the version goes up:
+Sites check this repo's `main` branch through [Plugin Update Checker](https://github.com/YahnisElsts/plugin-update-checker). An update is offered only when the version goes up:
 
 ```bash
 bin/bump-version.sh          # 1.0.0 -> 1.0.1 (or: minor, major, 1.2.3)
 git commit -am "Release 1.0.1" && git push
 ```
 
-WordPress checks about every 12 hours; **Plugins → Check for updates** under the plugin forces a check.
+WordPress checks about every 12 hours. The **Check for updates** link under the plugin forces a check.
 
 ## Bundled libraries
 

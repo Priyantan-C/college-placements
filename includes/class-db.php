@@ -1,28 +1,26 @@
 <?php
 /**
- * Database tables, activation and seed import.
+ * Database tables.
  */
 
 defined( 'ABSPATH' ) || exit;
 
-class STCET_PL_DB {
+class CPL_DB {
 
 	const DB_VERSION = '1';
 
 	public static function table( $name ) {
 		global $wpdb;
-		return $wpdb->prefix . 'stcet_pl_' . $name;
+		return $wpdb->prefix . 'cpl_' . $name;
 	}
 
 	public static function activate() {
 		self::create_tables();
-		self::seed();
 	}
 
 	public static function maybe_upgrade() {
-		if ( get_option( 'stcet_pl_db_version' ) !== self::DB_VERSION ) {
+		if ( get_option( 'cpl_db_version' ) !== self::DB_VERSION ) {
 			self::create_tables();
-			self::seed();
 		}
 	}
 
@@ -79,49 +77,6 @@ class STCET_PL_DB {
 			PRIMARY KEY  (alias_key)
 		) $charset;" );
 
-		update_option( 'stcet_pl_db_version', self::DB_VERSION );
-	}
-
-	/**
-	 * Load the v5 summary (2010-2026) and the company-name matches, once.
-	 */
-	public static function seed() {
-		global $wpdb;
-		if ( get_option( 'stcet_pl_seeded' ) ) {
-			return;
-		}
-
-		$summary = json_decode( (string) file_get_contents( STCET_PL_DIR . 'data/summary-seed.json' ), true );
-		if ( is_array( $summary ) ) {
-			foreach ( $summary as $y ) {
-				$year = (int) $y['year'];
-				$exists = $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . self::table( 'years' ) . ' WHERE year = %d', $year ) );
-				if ( $exists ) {
-					continue;
-				}
-				$wpdb->insert( self::table( 'years' ), array(
-					'year'              => $year,
-					'students_appeared' => (int) $y['students_appeared'],
-					'highest_pkg'       => (string) $y['highest_pkg'],
-					'avg_pkg'           => (string) $y['avg_pkg'],
-					'chart_source'      => 'summary',
-					'featured'          => wp_json_encode( array() ),
-					'footnote'          => '',
-					'records_note'      => '',
-					'updated_at'        => current_time( 'mysql' ),
-				) );
-				STCET_PL_Data::save_summary( $year, $y['companies'], false );
-			}
-		}
-
-		$aliases = json_decode( (string) file_get_contents( STCET_PL_DIR . 'data/aliases-seed.json' ), true );
-		if ( is_array( $aliases ) ) {
-			foreach ( $aliases as $alias => $company ) {
-				STCET_PL_Data::save_alias( $alias, $company, false );
-			}
-		}
-
-		update_option( 'stcet_pl_seeded', 1 );
-		STCET_PL_Data::flush_cache();
+		update_option( 'cpl_db_version', self::DB_VERSION );
 	}
 }

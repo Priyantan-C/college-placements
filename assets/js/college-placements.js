@@ -1,4 +1,4 @@
-/* STCET Placements – front-end charts. Mirrors the settings of the previous Netlify app. */
+/* College Placements – front-end charts. Mirrors the settings of the previous Netlify app. */
 (function () {
 	'use strict';
 
@@ -26,7 +26,7 @@
 		return rows.reduce(function (t, r) { return t + r[1]; }, 0);
 	}
 
-	/* ---------- [stcet_placement_trend] ---------- */
+	/* ---------- [placement_trend] ---------- */
 	function renderTrend(root, data) {
 		var years = data.years;
 		var labels = years.map(function (y) { return y.year; });
@@ -71,15 +71,15 @@
 		});
 	}
 
-	/* ---------- [stcet_placement_year] ---------- */
+	/* ---------- [placement_year] ---------- */
 	function renderYear(root, data) {
 		var years = data.years.slice().sort(function (a, b) { return b.year - a.year; });
 		if (!years.length) { return; }
 		var wanted = parseInt(root.getAttribute('data-year'), 10);
 		var current = years.filter(function (y) { return y.year === wanted; })[0] || years[0];
-		var uid = 'stcet-pl-year-' + Math.random().toString(36).slice(2, 8);
+		var uid = 'cpl-year-' + Math.random().toString(36).slice(2, 8);
 
-		var select = el('select', { id: uid, 'class': 'stcet-pl-select' });
+		var select = el('select', { id: uid, 'class': 'cpl-select' });
 		years.forEach(function (y) {
 			var opt = el('option', { value: y.year, text: String(y.year) });
 			if (y.year === current.year) { opt.selected = true; }
@@ -87,26 +87,26 @@
 		});
 
 		var canvas = el('canvas', { role: 'img', 'aria-label': root.getAttribute('data-title') });
-		var appearedEl = el('h5', { 'class': 'stcet-pl-card-title' });
-		var offersEl = el('h5', { 'class': 'stcet-pl-card-title' });
+		var appearedEl = el('h5', { 'class': 'cpl-card-title' });
+		var offersEl = el('h5', { 'class': 'cpl-card-title' });
 		var tbody = el('tbody');
 		var tfoot = el('tbody');
 
-		root.appendChild(el('div', { 'class': 'stcet-pl-picker' }, [
+		root.appendChild(el('div', { 'class': 'cpl-picker' }, [
 			el('label', { 'for': uid, text: 'Select Year:' }), select
 		]));
-		root.appendChild(el('div', { 'class': 'stcet-pl-pie' }, [canvas]));
-		root.appendChild(el('div', { 'class': 'stcet-pl-cards' }, [
-			el('div', { 'class': 'stcet-pl-card' }, [el('span', { 'class': 'stcet-pl-icon', html: ICON_LAPTOP }), appearedEl]),
-			el('div', { 'class': 'stcet-pl-card' }, [el('span', { 'class': 'stcet-pl-icon', html: ICON_GRAD }), offersEl])
+		root.appendChild(el('div', { 'class': 'cpl-pie' }, [canvas]));
+		root.appendChild(el('div', { 'class': 'cpl-cards' }, [
+			el('div', { 'class': 'cpl-card' }, [el('span', { 'class': 'cpl-icon', html: ICON_LAPTOP }), appearedEl]),
+			el('div', { 'class': 'cpl-card' }, [el('span', { 'class': 'cpl-icon', html: ICON_GRAD }), offersEl])
 		]));
-		var table = el('table', { 'class': 'stcet-pl-company-table' }, [
+		var table = el('table', { 'class': 'cpl-company-table' }, [
 			el('thead', {}, [el('tr', {}, ['Serial No.', 'Company Name', 'Number of Placements', 'Highest Package', 'Average Package'].map(function (h) {
 				return el('th', { text: h });
 			}))]),
 			tbody, tfoot
 		]);
-		root.appendChild(el('div', { 'class': 'stcet-pl-table-wrap' }, [table]));
+		root.appendChild(el('div', { 'class': 'cpl-table-wrap' }, [table]));
 
 		var chart = new window.Chart(canvas, {
 			type: 'pie',
@@ -135,14 +135,14 @@
 			rows.forEach(function (r, i) {
 				var tr = el('tr', {}, [el('td', { text: String(i + 1) }), el('td', { text: r[0] }), el('td', { text: String(r[1]) })]);
 				if (i === 0) {
-					tr.appendChild(el('td', { 'class': 'stcet-pl-pkg', rowspan: String(rows.length), text: y.highest || '' }));
-					tr.appendChild(el('td', { 'class': 'stcet-pl-pkg', rowspan: String(rows.length), text: y.avg || '' }));
+					tr.appendChild(el('td', { 'class': 'cpl-pkg', rowspan: String(rows.length), text: y.highest || '' }));
+					tr.appendChild(el('td', { 'class': 'cpl-pkg', rowspan: String(rows.length), text: y.avg || '' }));
 				}
 				tbody.appendChild(tr);
 			});
 			tfoot.innerHTML = '';
 			if (y.footnote) {
-				tfoot.appendChild(el('tr', {}, [el('td', { colspan: '5', 'class': 'stcet-pl-footnote', text: y.footnote })]));
+				tfoot.appendChild(el('tr', {}, [el('td', { colspan: '5', 'class': 'cpl-footnote', text: y.footnote })]));
 			}
 		}
 
@@ -154,10 +154,10 @@
 	}
 
 	function boot() {
-		var data = window.STCETPL;
+		var data = window.CPL_DATA;
 		if (!data || !window.Chart) { return; }
-		document.querySelectorAll('.stcet-pl-trend').forEach(function (root) { renderTrend(root, data); });
-		document.querySelectorAll('.stcet-pl-year').forEach(function (root) { renderYear(root, data); });
+		document.querySelectorAll('.cpl-trend').forEach(function (root) { renderTrend(root, data); });
+		document.querySelectorAll('.cpl-year').forEach(function (root) { renderYear(root, data); });
 	}
 
 	if (document.readyState === 'loading') {

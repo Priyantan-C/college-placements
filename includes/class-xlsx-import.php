@@ -5,13 +5,13 @@
 
 defined( 'ABSPATH' ) || exit;
 
-class STCET_PL_Xlsx_Import {
+class CPL_Xlsx_Import {
 
 	/**
 	 * @return array ['rows' => [...], 'sheet' => string, 'errors' => [], 'warnings' => []]
 	 */
 	public static function parse( $path ) {
-		require_once STCET_PL_DIR . 'lib/simplexlsx/SimpleXLSX.php';
+		require_once CPL_DIR . 'lib/simplexlsx/SimpleXLSX.php';
 
 		$result = array( 'rows' => array(), 'sheet' => '', 'title' => '', 'errors' => array(), 'warnings' => array() );
 
@@ -42,13 +42,13 @@ class STCET_PL_Xlsx_Import {
 		$map       = array();
 		$title     = '';
 		foreach ( array_slice( $rows, 0, 15, true ) as $i => $cells ) {
-			$map = STCET_PL_Data::map_headers( $cells );
+			$map = CPL_Data::map_headers( $cells );
 			if ( $map ) {
 				$header_at = $i;
 				break;
 			}
 			if ( '' === $title ) {
-				$title = STCET_PL_Data::clean( implode( ' ', array_filter( array_map( 'strval', $cells ) ) ) );
+				$title = CPL_Data::clean( implode( ' ', array_filter( array_map( 'strval', $cells ) ) ) );
 			}
 		}
 		if ( null === $header_at ) {
@@ -88,6 +88,6 @@ class STCET_PL_Xlsx_Import {
 				return sprintf( '%.0f', $num );
 			}
 		}
-		return STCET_PL_Data::clean( $value );
+		return CPL_Data::clean( $value );
 	}
 }

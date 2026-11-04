@@ -5,7 +5,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-class STCET_PL_Page_Import {
+class CPL_Page_Import {
 
 	/**
 	 * Find the tables on a page and the year each one belongs to.
@@ -30,7 +30,7 @@ class STCET_PL_Page_Import {
 
 		foreach ( $nodes as $node ) {
 			if ( XML_TEXT_NODE === $node->nodeType ) {
-				$text = STCET_PL_Data::clean( $node->textContent );
+				$text = CPL_Data::clean( $node->textContent );
 				if ( preg_match( '/\b((?:19|20)\d{2})\s*Placement\s+(?:Data|Record)/i', $text, $m ) ) {
 					$pending_year = (int) $m[1];
 					$pending_note = array();
@@ -45,11 +45,11 @@ class STCET_PL_Page_Import {
 			foreach ( $xpath->query( './/tr', $node ) as $tr ) {
 				$cells = array();
 				foreach ( $xpath->query( './th|./td', $tr ) as $cell ) {
-					$cells[] = STCET_PL_Data::clean( $cell->textContent );
+					$cells[] = CPL_Data::clean( $cell->textContent );
 				}
 				$rows[] = $cells;
 			}
-			$read = STCET_PL_Xlsx_Import::read_sheet( $rows );
+			$read = CPL_Xlsx_Import::read_sheet( $rows );
 			if ( ! $read || empty( $read['rows'] ) ) {
 				continue;
 			}
