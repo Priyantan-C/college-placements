@@ -28,7 +28,7 @@ The charts and tables update immediately.
 | `[placement_year]` | Year buttons, stat tiles and a donut chart of offers by company with a list of shares (`year="2026"` to start on a given year) |
 | `[placement_records]` | Year-wise student tables with search and department filters (`years="2026,2025"`, `open="none"` (default), `"first"` or `"all"`) |
 
-`[placement_trend]` and `[placement_year]` also accept `title="…"`. Both charts have **Download** (PNG for reports) and **Table** buttons.
+`[placement_trend]` and `[placement_year]` also accept `title="…"`. Both charts have a **Download** button (PNG for reports; hidden on phones). The year view always shows a summary table beside the donut.
 
 ## Summary workbook format
 

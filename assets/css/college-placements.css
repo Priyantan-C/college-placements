@@ -112,21 +112,39 @@
 /* ---------- Chart card ---------- */
 .cpl-donut { display: grid; grid-template-columns: minmax(240px, 420px) minmax(0, 1fr); gap: 28px; align-items: center; }
 .cpl-donut-canvas { position: relative; width: 100%; aspect-ratio: 1 / 1; }
-.cpl-donut-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 15px; width: 100%; max-width: 440px; }
-.cpl-donut-list li {
-	display: grid; grid-template-columns: 14px minmax(0, 1fr) auto 3.2em; align-items: center; gap: 10px;
-	margin: 0; padding: 7px 10px; border-radius: 8px; cursor: default; transition: background-color .15s;
+.cpl-summary-wrap { min-width: 0; }
+.cpl-widget .cpl-summary-table { width: 100%; margin: 0; border: 0; border-collapse: separate; border-spacing: 0; font-size: 15px; table-layout: auto; }
+.cpl-widget .cpl-summary-table th, .cpl-widget .cpl-summary-table td {
+	padding: 9px 10px; border: 0; border-bottom: 1px solid var(--cpl-line); background: transparent; text-align: left; vertical-align: middle; line-height: 1.3;
 }
-.cpl-donut-list li:hover, .cpl-donut-list li.is-active, .cpl-donut-list li:focus-visible { background: var(--cpl-wash); }
-.cpl-dot { width: 14px; height: 14px; border-radius: 50%; }
-.cpl-li-name { color: var(--cpl-ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cpl-li-value { font-weight: 700; color: var(--cpl-ink); font-variant-numeric: tabular-nums; text-align: right; }
-.cpl-li-share { color: var(--cpl-ink-2); font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; }
+.cpl-widget .cpl-summary-table thead th {
+	padding-top: 0; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--cpl-ink-3); border-bottom-color: var(--cpl-line);
+}
+.cpl-widget .cpl-summary-table tbody tr { transition: background-color .15s; cursor: default; }
+.cpl-widget .cpl-summary-table tbody tr:hover td, .cpl-widget .cpl-summary-table tbody tr:hover th,
+.cpl-widget .cpl-summary-table tbody tr.is-active td, .cpl-widget .cpl-summary-table tbody tr.is-active th,
+.cpl-widget .cpl-summary-table tbody tr:focus-visible td, .cpl-widget .cpl-summary-table tbody tr:focus-visible th { background: var(--cpl-wash); }
+.cpl-widget .cpl-summary-table tbody tr:focus-visible { outline: 2px solid var(--cpl-accent); outline-offset: -2px; }
+.cpl-widget .cpl-summary-table .cpl-rank { width: 2.2em; padding-right: 0; color: var(--cpl-ink-3); font-size: 13px; font-variant-numeric: tabular-nums; }
+.cpl-widget .cpl-summary-table .cpl-company { font-weight: 600; color: var(--cpl-ink); }
+.cpl-widget .cpl-summary-table .cpl-company > span:last-child { overflow-wrap: anywhere; }
+.cpl-widget .cpl-summary-table .cpl-company .cpl-dot { display: inline-block; vertical-align: -1px; margin-right: 10px; }
+.cpl-widget .cpl-summary-table .cpl-offers { width: 4em; font-weight: 700; font-size: 16px; }
+.cpl-widget .cpl-summary-table .cpl-share { width: 38%; white-space: nowrap; }
+.cpl-share-bar { display: inline-block; vertical-align: middle; width: calc(100% - 3.6em); height: 8px; border-radius: 999px; background: #eef0f3; overflow: hidden; }
+.cpl-share-fill { display: block; height: 100%; border-radius: 999px; }
+.cpl-share-pct { display: inline-block; width: 3.2em; text-align: right; font-size: 13px; color: var(--cpl-ink-2); font-variant-numeric: tabular-nums; }
+.cpl-widget .cpl-summary-table tfoot th, .cpl-widget .cpl-summary-table tfoot td { border-bottom: 0; border-top: 2px solid var(--cpl-ink); font-weight: 700; padding-top: 11px; }
+.cpl-widget .cpl-summary-table tfoot .cpl-share { text-align: right; }
+.cpl-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
 @media (max-width: 760px) {
 	.cpl-donut { grid-template-columns: 1fr; gap: 12px; }
 	.cpl-donut-canvas { max-width: 340px; margin: 0 auto; }
-	.cpl-donut-list { max-width: none; }
-	.cpl-donut-list { font-size: 14px; }
+	.cpl-widget .cpl-summary-table { font-size: 14px; }
+	.cpl-widget .cpl-summary-table th, .cpl-widget .cpl-summary-table td { padding: 8px 6px; }
+	.cpl-widget .cpl-summary-table .cpl-rank { display: none; }
+	.cpl-widget .cpl-summary-table .cpl-share { width: 34%; }
+	.cpl-widget .cpl-summary-table .cpl-offers { width: 3em; font-size: 15px; }
 }
 .cpl-card {
 	background: var(--cpl-surface); border: 1px solid var(--cpl-line); border-radius: var(--cpl-radius);

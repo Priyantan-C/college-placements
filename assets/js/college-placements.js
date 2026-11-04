@@ -245,17 +245,6 @@
 		return b;
 	}
 	var ICON_DOWNLOAD = '<svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M9.25 3h1.5v8.19l2.97-2.97 1.06 1.06L10 14.06 5.22 9.28l1.06-1.06 2.97 2.97V3ZM4 15.5h12V17H4z"/></svg>';
-	var ICON_TABLE = '<svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M3 4h14v12H3V4Zm1.5 1.5v2.25h11V5.5h-11Zm0 3.75v2.25h4.75V9.25H4.5Zm6.25 0v2.25h4.75V9.25h-4.75ZM4.5 13v1.5h4.75V13H4.5Zm6.25 0v1.5h4.75V13h-4.75Z"/></svg>';
-
-	function tableToggle(button, wrap) {
-		button.setAttribute('aria-expanded', 'false');
-		button.addEventListener('click', function () {
-			var open = wrap.hidden;
-			wrap.hidden = !open;
-			button.setAttribute('aria-expanded', open ? 'true' : 'false');
-			button.querySelector('span').textContent = open ? 'Hide table' : 'Table';
-		});
-	}
 
 	function whenVisible(node, fn) {
 		if (!('IntersectionObserver' in window)) { fn(); return; }
@@ -296,36 +285,35 @@
 			earlierWrap.insertAdjacentHTML('beforeend', '<svg class="cpl-pill-caret" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M5.5 7.5 10 12l4.5-4.5 1 1L10 14 4.5 8.5z"/></svg>');
 			pills.appendChild(earlierWrap);
 		}
-		var tableBtn = actionButton('Table', ICON_TABLE);
 		var dlBtn = actionButton('Download', ICON_DOWNLOAD);
 		dlBtn.setAttribute('aria-label', 'Download chart as image');
 		var pillsWrap = el('div', { 'class': 'cpl-pills-wrap' }, [pills]);
-		var toolbar = el('div', { 'class': 'cpl-toolbar' }, [pillsWrap, el('div', { 'class': 'cpl-actions' }, [tableBtn, dlBtn])]);
+		var toolbar = el('div', { 'class': 'cpl-toolbar' }, [pillsWrap, el('div', { 'class': 'cpl-actions' }, [dlBtn])]);
 
 		var status = el('div', { 'class': 'cpl-year-status', hidden: '' });
 		var tiles = el('div', { 'class': 'cpl-tiles' });
 		var canvasWrap = el('div', { 'class': 'cpl-donut-canvas' });
 		var canvas = el('canvas', { role: 'img' });
 		canvasWrap.appendChild(canvas);
-		var list = el('ol', { 'class': 'cpl-donut-list' });
-		var donut = el('div', { 'class': 'cpl-donut' }, [canvasWrap, list]);
-		var tableWrap = el('div', { 'class': 'cpl-data-table', hidden: '' });
+		var list = el('tbody');
+		var summary = el('table', { 'class': 'cpl-summary-table' });
+		var summaryWrap = el('div', { 'class': 'cpl-summary-wrap' }, [summary]);
+		var donut = el('div', { 'class': 'cpl-donut' }, [canvasWrap, summaryWrap]);
 		var foot = el('p', { 'class': 'cpl-footnote', hidden: '' });
 		var head = chartHead();
-		var card = el('div', { 'class': 'cpl-card' }, [head.node, donut, tableWrap, foot]);
+		var card = el('div', { 'class': 'cpl-card' }, [head.node, donut, foot]);
 
 		root.appendChild(toolbar);
 		root.appendChild(status);
 		root.appendChild(tiles);
 		root.appendChild(card);
-		tableToggle(tableBtn, tableWrap);
 		var updateHint = scrollHint(pills, pillsWrap);
 
 		var chart = null;
 		var buildConfig = null;
 
 		function highlight(i) {
-			Array.prototype.forEach.call(list.children, function (li, k) { li.classList.toggle('is-active', k === i); });
+			Array.prototype.forEach.call(list.children, function (tr, k) { tr.classList.toggle('is-active', k === i); });
 		}
 		function activate(i) {
 			if (!chart) { return; }
@@ -500,42 +488,45 @@
 			if (chart) { chart.destroy(); }
 			chart = new window.Chart(canvas, buildConfig(false));
 
-			/* The list beside the ring: colour, company, offers, share. Hovering a row lights up its slice. */
-			list.innerHTML = '';
+			/* Summary table beside the ring: rank, colour + company, offers, share (bar + %). Always visible.
+			   Hovering or focusing a row lights up its slice. */
+			var maxV = Math.max.apply(Math, rows.map(function (r) { return r[1]; }));
+			summary.innerHTML = '';
+			list = el('tbody');
 			rows.forEach(function (r, i) {
 				var c = fills[i];
 				var dot = el('span', { 'class': 'cpl-dot', 'aria-hidden': 'true' });
-				dot.style.background = isOthers(r[0]) ? rgb(c) : 'linear-gradient(135deg, ' + rgb(lighten(c, 0.28)) + ', ' + rgb(c) + ')';
-				var li = el('li', { 'data-index': String(i), tabindex: '0' }, [
-					dot,
-					el('span', { 'class': 'cpl-li-name', text: r[0] }),
-					el('span', { 'class': 'cpl-li-value', text: String(r[1]) }),
-					el('span', { 'class': 'cpl-li-share', text: share(r[1]) })
+				var fillCss = isOthers(r[0]) ? rgb(c) : 'linear-gradient(90deg, ' + rgb(lighten(c, 0.28)) + ', ' + rgb(c) + ')';
+				dot.style.background = fillCss;
+				var bar = el('span', { 'class': 'cpl-share-bar', 'aria-hidden': 'true' }, [el('span', { 'class': 'cpl-share-fill' })]);
+				bar.firstChild.style.width = Math.max(2, Math.round(r[1] / maxV * 100)) + '%';
+				bar.firstChild.style.background = fillCss;
+				var tr = el('tr', { tabindex: '0' }, [
+					el('td', { 'class': 'cpl-rank', text: isOthers(r[0]) ? '' : String(i + 1) }),
+					el('th', { scope: 'row', 'class': 'cpl-company' }, [dot, el('span', { text: r[0] })]),
+					el('td', { 'class': 'cpl-num cpl-offers', text: String(r[1]) }),
+					el('td', { 'class': 'cpl-share' }, [bar, el('span', { 'class': 'cpl-share-pct', text: share(r[1]) })])
 				]);
-				li.addEventListener('mouseenter', function () { activate(i); });
-				li.addEventListener('focus', function () { activate(i); });
-				li.addEventListener('mouseleave', function () { activate(-1); });
-				li.addEventListener('blur', function () { activate(-1); });
-				list.appendChild(li);
+				tr.addEventListener('mouseenter', function () { activate(i); });
+				tr.addEventListener('focus', function () { activate(i); });
+				tr.addEventListener('mouseleave', function () { activate(-1); });
+				tr.addEventListener('blur', function () { activate(-1); });
+				list.appendChild(tr);
 			});
-
-			/* Table view */
-			tableWrap.innerHTML = '';
-			var tb = el('tbody');
-			rows.forEach(function (r, i) {
-				tb.appendChild(el('tr', {}, [
-					el('td', { 'class': 'cpl-num', text: String(i + 1) }),
-					el('td', { text: r[0] }),
-					el('td', { 'class': 'cpl-num', text: String(r[1]) }),
-					el('td', { 'class': 'cpl-num', text: Math.round(r[1] / total * 100) + '%' })
-				]));
-			});
-			tb.appendChild(el('tr', { 'class': 'cpl-total-row' }, [el('td'), el('td', { text: 'Total' }), el('td', { 'class': 'cpl-num', text: String(total) }), el('td', { 'class': 'cpl-num', text: '100%' })]));
-			tableWrap.appendChild(el('table', {}, [
-				el('caption', { 'class': 'screen-reader-text', text: title }),
-				el('thead', {}, [el('tr', {}, ['#', 'Company', 'Offers', 'Share'].map(function (h, i) { return el('th', { scope: 'col', 'class': i === 1 ? '' : 'cpl-num', text: h }); }))]),
-				tb
-			]));
+			summary.appendChild(el('caption', { 'class': 'screen-reader-text', text: title }));
+			summary.appendChild(el('thead', {}, [el('tr', {}, [
+				el('th', { scope: 'col', 'class': 'cpl-rank', text: '#' }),
+				el('th', { scope: 'col', text: 'Company' }),
+				el('th', { scope: 'col', 'class': 'cpl-num', text: 'Offers' }),
+				el('th', { scope: 'col', 'class': 'cpl-share', text: 'Share' })
+			])]));
+			summary.appendChild(list);
+			summary.appendChild(el('tfoot', {}, [el('tr', {}, [
+				el('td', { 'class': 'cpl-rank' }),
+				el('th', { scope: 'row', 'class': 'cpl-company', text: 'Total' }),
+				el('td', { 'class': 'cpl-num cpl-offers', text: String(total) }),
+				el('td', { 'class': 'cpl-share' }, [el('span', { 'class': 'cpl-share-pct', text: '100%' })])
+			])]));
 
 			foot.hidden = !y.footnote;
 			foot.textContent = y.footnote || '';
@@ -593,21 +584,20 @@
 			return t;
 		});
 
-		var tableBtn = actionButton('Table', ICON_TABLE);
 		var dlBtn = actionButton('Download', ICON_DOWNLOAD);
 		dlBtn.setAttribute('aria-label', 'Download chart as image');
-		var toolbar = el('div', { 'class': 'cpl-toolbar cpl-toolbar-end' }, [el('div', { 'class': 'cpl-actions' }, [tableBtn, dlBtn])]);
+		var toolbar = el('div', { 'class': 'cpl-toolbar cpl-toolbar-end' }, [el('div', { 'class': 'cpl-actions' }, [dlBtn])]);
 		var canvasWrap = el('div', { 'class': 'cpl-canvas cpl-canvas-trend' });
 		var canvas = el('canvas', { role: 'img' });
 		canvasWrap.appendChild(canvas);
-		var tableWrap = el('div', { 'class': 'cpl-data-table', hidden: '' });
+		// The numbers behind the chart, for screen readers.
+		var tableWrap = el('div', { 'class': 'screen-reader-text' });
 		root.appendChild(toolbar);
 		var trendSub = span + ' · offers by company, with total offers and students appeared';
 		var head = chartHead();
 		head.title.textContent = title;
 		head.sub.textContent = trendSub;
 		root.appendChild(el('div', { 'class': 'cpl-card' }, [head.node, canvasWrap, tableWrap]));
-		tableToggle(tableBtn, tableWrap);
 
 		var chart = null;
 		var maxIndex = totals.indexOf(Math.max.apply(Math, totals));

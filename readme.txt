@@ -3,7 +3,7 @@ Contributors: priyantanc
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.4.0
+Stable tag: 1.4.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,6 +20,9 @@ Shortcodes:
 * `[placement_records]` – year-wise student tables (`years="2026,2025"`, `open="none|first|all", default none`).
 
 == Changelog ==
+
+= 1.4.1 =
+* Removed the Table buttons. The year view now always shows a summary table beside the donut (rank, company, offers, share bar and %, total), fitted for desktop and phones. The trend chart's numbers stay available to screen readers.
 
 = 1.4.0 =
 * Placement Data Year Wise is now a colourful donut chart: 12 vivid colours with soft gradients, the total in the centre, and a list of companies with offers and share. Hovering a slice or a list row highlights both.
