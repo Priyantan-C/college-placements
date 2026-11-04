@@ -170,3 +170,14 @@
 		updateLive();
 	}
 }());
+
+/* Replacing a saved student list: the Replace button stays disabled until the confirmation box is ticked. */
+(function () {
+	'use strict';
+	var gate = document.querySelector('[data-cpl-gate]');
+	var button = document.querySelector('[data-cpl-gated]');
+	if (!gate || !button) { return; }
+	var sync = function () { button.disabled = !gate.checked; };
+	gate.addEventListener('change', sync);
+	sync();
+}());

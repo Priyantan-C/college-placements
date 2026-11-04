@@ -12,7 +12,7 @@ class CPL_Admin {
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
-		foreach ( array( 'save_year', 'delete_year', 'add_year', 'upload', 'upload_confirm', 'save_names', 'import_scan', 'import_confirm', 'summary_upload', 'summary_confirm', 'save_settings' ) as $action ) {
+		foreach ( array( 'save_year', 'delete_year', 'add_year', 'upload', 'upload_confirm', 'upload_year', 'save_names', 'import_scan', 'import_confirm', 'summary_upload', 'summary_confirm', 'save_settings' ) as $action ) {
 			add_action( 'admin_post_cpl_' . $action, array( __CLASS__, 'handle_' . $action ) );
 		}
 		add_filter( 'plugin_action_links_' . plugin_basename( CPL_FILE ), function ( $links ) {
@@ -611,6 +611,56 @@ class CPL_Admin {
 		return ( $data && (int) $data['user'] === get_current_user_id() ) ? $data : null;
 	}
 
+	/** A student's identity for comparing lists: roll number if there is one, otherwise the name. */
+	private static function student_id( $r ) {
+		$urn = preg_replace( '/\D+/', '', (string) $r['urn'] );
+		return '' !== $urn ? 'u' . $urn : 'n' . CPL_Data::key( $r['name'] );
+	}
+
+	/** How a new list compares with a saved one: students in both, only in the file, only in the saved list. */
+	private static function compare_lists( array $file_rows, array $saved_rows ) {
+		$file  = array_unique( array_map( array( __CLASS__, 'student_id' ), $file_rows ) );
+		$saved = array_unique( array_map( array( __CLASS__, 'student_id' ), $saved_rows ) );
+		$both  = count( array_intersect( $file, $saved ) );
+		return array(
+			'both'    => $both,
+			'new'     => count( $file ) - $both,
+			'gone'    => count( $saved ) - $both,
+			'file'    => count( $file ),
+			'overlap' => $file ? $both / count( $file ) : 0,
+		);
+	}
+
+	/** The year a file's title row or name points to, e.g. "Placement Record 2026-27" → 2027, "PlacementData 2027.xlsx" → 2027. */
+	private static function year_hint( $text ) {
+		$best = 0;
+		if ( preg_match_all( '/\b((?:19|20)\d{2})(?:\s*[-–\/]\s*(\d{2}|\d{4}))?\b/u', (string) $text, $m, PREG_SET_ORDER ) ) {
+			foreach ( $m as $hit ) {
+				$y = (int) $hit[1];
+				if ( ! empty( $hit[2] ) ) {
+					$end = (int) $hit[2];
+					$y   = $end < 100 ? (int) ( floor( $y / 100 ) * 100 + $end ) : $end;
+				}
+				$best = max( $best, $y );
+			}
+		}
+		return $best;
+	}
+
+	/** Change the year of an upload that is waiting for confirmation. */
+	public static function handle_upload_year() {
+		self::check( 'upload_year' );
+		$token = sanitize_key( self::post( 'token' ) );
+		$data  = self::get_upload( $token );
+		$year  = self::year_param();
+		if ( $data && $year ) {
+			$data['year'] = $year;
+			set_transient( 'cpl_upload_' . $token, $data, HOUR_IN_SECONDS );
+			self::flash( sprintf( 'Year changed to %d. Check the list again before saving.', $year ) );
+		}
+		self::redirect( self::url( 'upload', array( 'token' => $token ) ) );
+	}
+
 	private static function page_upload_preview( $token ) {
 		$data = self::get_upload( $token );
 		if ( ! $data ) {
@@ -634,6 +684,25 @@ class CPL_Admin {
 		} ) );
 
 		$counts = CPL_Data::company_counts( $rows, $aliases );
+
+		/* Safety checks against overwriting the wrong year. */
+		$compare = $existing ? self::compare_lists( $rows, $existing ) : null;
+		$suspect = $compare && $compare['file'] >= 5 && $compare['overlap'] < 0.5; // most students are not in the saved list
+		$hint    = self::year_hint( $data['parsed']['title'] . ' ' . $data['file'] );
+		$hint    = ( $hint >= 1990 && $hint <= 2100 && $hint !== (int) $year ) ? $hint : 0;
+		$match_year = 0; // another year whose saved list these students already belong to
+		$match      = null;
+		foreach ( CPL_Data::record_counts_by_year() as $other => $n ) {
+			if ( (int) $other === (int) $year || ! $n ) {
+				continue;
+			}
+			$c = self::compare_lists( $rows, CPL_Data::get_records( $other ) );
+			if ( $c['overlap'] >= 0.5 && ( ! $match || $c['overlap'] > $match['overlap'] ) ) {
+				$match      = $c;
+				$match_year = (int) $other;
+			}
+		}
+		$suggest = $match_year ?: $hint;
 		?>
 		<div class="wrap cpl">
 			<h1>Check the <?php echo esc_html( $year ); ?> student list</h1>
@@ -662,8 +731,41 @@ class CPL_Admin {
 			<?php if ( $data['parsed']['warnings'] ) : ?>
 				<div class="notice notice-warning inline"><p><?php echo implode( '<br>', array_map( 'esc_html', $data['parsed']['warnings'] ) ); // phpcs:ignore WordPress.Security.EscapeOutput ?></p></div>
 			<?php endif; ?>
-			<?php if ( $existing ) : ?>
-				<div class="notice notice-info inline"><p>Confirming replaces the <?php echo esc_html( count( $existing ) ); ?> rows already saved for <?php echo esc_html( $year ); ?>.</p></div>
+			<?php if ( $suspect || $hint || $match_year ) : ?>
+				<div class="notice notice-error inline cpl-alert">
+					<p><strong>Is <?php echo esc_html( $year ); ?> the right year for this file?</strong></p>
+					<ul>
+						<?php if ( $suspect ) : ?>
+							<li>Only <strong><?php echo esc_html( $compare['both'] ); ?> of the <?php echo esc_html( $compare['file'] ); ?> students</strong> in this file are in the list already saved for <?php echo esc_html( $year ); ?>. It looks like a different batch.</li>
+						<?php endif; ?>
+						<?php if ( $match_year ) : ?>
+							<li><strong><?php echo esc_html( $match['both'] ); ?> of the <?php echo esc_html( $match['file'] ); ?> students</strong> in this file are already in the <strong><?php echo esc_html( $match_year ); ?></strong> list.</li>
+						<?php endif; ?>
+						<?php if ( $hint ) : ?>
+							<li>The file’s <?php echo $data['parsed']['title'] && self::year_hint( $data['parsed']['title'] ) === $hint ? 'title (“' . esc_html( $data['parsed']['title'] ) . '”)' : 'name (“' . esc_html( $data['file'] ) . '”)'; ?> points to <strong><?php echo esc_html( $hint ); ?></strong>.</li>
+						<?php endif; ?>
+					</ul>
+					<?php if ( $suggest ) : ?>
+						<?php self::form_start( 'upload_year' ); ?>
+							<input type="hidden" name="token" value="<?php echo esc_attr( $token ); ?>">
+							<input type="hidden" name="year" value="<?php echo esc_attr( $suggest ); ?>">
+							<p><?php submit_button( sprintf( 'Switch to %d', $suggest ), 'primary', 'submit', false ); ?>
+							<span class="description">or keep <?php echo esc_html( $year ); ?> if you are sure.</span></p>
+						</form>
+					<?php endif; ?>
+				</div>
+			<?php endif; ?>
+			<?php if ( $existing ) :
+				$upd = $year_row ? CPL_Data::updated_label( $year_row ) : '';
+				?>
+				<div class="notice notice-warning inline cpl-alert">
+					<p><strong><?php echo esc_html( $year ); ?> already has a student list</strong> (<?php echo esc_html( count( $existing ) ); ?> rows<?php echo $upd ? ', last updated ' . esc_html( $upd ) : ''; ?>). Saving replaces it with this file.</p>
+					<p>Compared with the saved list: <strong><?php echo esc_html( $compare['both'] ); ?></strong> students in both,
+						<strong><?php echo esc_html( $compare['new'] ); ?></strong> new in this file,
+						<strong><?php echo esc_html( $compare['gone'] ); ?></strong> in the saved list but not in this file.</p>
+				</div>
+			<?php else : ?>
+				<div class="notice notice-info inline"><p><?php echo esc_html( $year ); ?> has no student list yet<?php echo $year_row ? '' : ', so the year will be created'; ?>.</p></div>
 			<?php endif; ?>
 			<?php if ( $year_row && CPL_Data::SOURCE_SUM === $year_row['chart_source'] ) : ?>
 				<div class="notice notice-info inline"><p><?php echo esc_html( $year ); ?> charts currently use summary numbers, so this upload updates the student table only. You can switch the charts to the student list in the year’s settings.</p></div>
@@ -713,8 +815,12 @@ class CPL_Admin {
 				</tbody>
 			</table>
 
+			<?php if ( $existing ) : ?>
+				<p class="cpl-replace-confirm"><label><input type="checkbox" name="replace_confirm" value="<?php echo esc_attr( $year ); ?>" required data-cpl-gate>
+					Yes, replace the saved <?php echo esc_html( $year ); ?> list (<?php echo esc_html( count( $existing ) ); ?> rows) with this file.</label></p>
+			<?php endif; ?>
 			<p class="submit">
-				<?php submit_button( sprintf( 'Save %d rows for %d', count( $rows ), $year ), 'primary', 'submit', false ); ?>
+				<?php submit_button( sprintf( $existing ? 'Replace %2$d list with %1$d rows' : 'Save %d rows for %d', count( $rows ), $year ), $existing ? 'primary cpl-danger' : 'primary', 'submit', false, $existing ? array( 'disabled' => 'disabled', 'data-cpl-gated' => '1' ) : array() ); ?>
 				<a class="button" href="<?php echo esc_url( self::url( 'upload', array( 'year' => $year ) ) ); ?>">Cancel</a>
 			</p>
 			</form>
@@ -774,6 +880,10 @@ class CPL_Admin {
 			self::redirect( self::url( 'upload' ) );
 		}
 		$year = (int) $data['year'];
+		if ( CPL_Data::get_records( $year ) && (int) self::post( 'replace_confirm' ) !== $year ) {
+			self::flash( sprintf( '%d already has a student list. Tick “Yes, replace the saved %d list” to replace it.', $year, $year ), 'error' );
+			self::redirect( self::url( 'upload', array( 'token' => $token ) ) );
+		}
 		self::save_name_matches( CPL_Data::get_aliases() );
 		CPL_Data::ensure_year( $year );
 		CPL_Data::replace_records( $year, $data['parsed']['rows'] );

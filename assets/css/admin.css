@@ -40,3 +40,13 @@ tr.cpl-dragging { opacity: .45; }
 tr.cpl-moved td { animation: cpl-moved 1s ease-out; }
 @keyframes cpl-moved { from { background: #f0f6fc; } to { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { tr.cpl-moved td { animation: none; } }
+.cpl .cpl-alert { padding: 10px 14px; }
+.cpl .cpl-alert ul { margin: 4px 0 8px 18px; list-style: disc; }
+.cpl .cpl-alert form { margin: 0; }
+.cpl .cpl-alert .submit, .cpl .cpl-alert p:last-child { margin-bottom: 4px; }
+.cpl .notice-error.cpl-alert { border-left-width: 6px; }
+.cpl-replace-confirm { display: inline-block; margin: 12px 0 0; padding: 10px 14px; background: #fcf0f1; border: 1px solid #f0b8bd; border-radius: 4px; font-weight: 600; }
+.cpl-replace-confirm input { margin-right: 6px; }
+.cpl .button-primary.cpl-danger { background: #b32d2e; border-color: #b32d2e; }
+.cpl .button-primary.cpl-danger:hover, .cpl .button-primary.cpl-danger:focus { background: #8a2424; border-color: #8a2424; }
+.cpl .button-primary.cpl-danger:disabled { background: #e3a5a6 !important; border-color: #e3a5a6 !important; color: #fff !important; }

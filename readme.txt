@@ -3,7 +3,7 @@ Contributors: priyantanc
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.5.1
+Stable tag: 1.6.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,6 +20,10 @@ Shortcodes:
 * `[placement_records]` – year-wise student tables (`years="2026,2025"`, `open="none|first|all", default none`).
 
 == Changelog ==
+
+= 1.6.0 =
+* Upload safety: the preview warns when the file looks like a different year – most students are not in the year's saved list, the students already belong to another year's list, or the file's title/name points to another year – with a one-click "Switch to YYYY".
+* Replacing a year's saved list now needs an explicit tick ("Yes, replace the saved YYYY list"), shows students added/removed, and is enforced on the server too.
 
 = 1.5.1 =
 * The trend chart's Download button now sits below the chart.
