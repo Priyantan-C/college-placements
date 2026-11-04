@@ -10,27 +10,84 @@
 		return Array.prototype.slice.call((root || document).querySelectorAll(sel));
 	}
 
-	/* Companies shown separately: live totals and tick all / none. */
+	/* Reorder rows: drag the handle, or use the arrow buttons. Works for any tbody.cpl-sortable. */
+	var dragging = null;
+	function moveRow(row, dir) {
+		var target = dir === 'up' ? row.previousElementSibling : row.nextElementSibling;
+		if (!target) { return; }
+		if (dir === 'up') { target.before(row); } else { target.after(row); }
+		row.querySelector('.cpl-move[data-dir="' + dir + '"]').focus();
+		flash(row);
+	}
+	function flash(row) {
+		row.classList.remove('cpl-moved');
+		void row.offsetWidth;
+		row.classList.add('cpl-moved');
+	}
+	$all('tbody.cpl-sortable').forEach(function (body) {
+		body.addEventListener('click', function (e) {
+			var btn = e.target.closest('.cpl-move');
+			if (btn) { e.preventDefault(); moveRow(btn.closest('tr'), btn.getAttribute('data-dir')); }
+		});
+		body.addEventListener('dragstart', function (e) {
+			if (!e.target.classList || !e.target.classList.contains('cpl-handle')) { return; }
+			dragging = e.target.closest('tr');
+			dragging.classList.add('cpl-dragging');
+			e.dataTransfer.effectAllowed = 'move';
+			try { e.dataTransfer.setData('text/plain', ''); e.dataTransfer.setDragImage(dragging, 20, 20); } catch (err) { /* older browsers */ }
+		});
+		body.addEventListener('dragover', function (e) {
+			if (!dragging || dragging.parentNode !== body) { return; }
+			e.preventDefault();
+			var over = e.target.closest('tr');
+			if (!over || over === dragging || over.parentNode !== body) { return; }
+			var rect = over.getBoundingClientRect();
+			if (e.clientY < rect.top + rect.height / 2) { over.before(dragging); } else { over.after(dragging); }
+		});
+		body.addEventListener('drop', function (e) { if (dragging) { e.preventDefault(); } });
+		body.addEventListener('dragend', function () {
+			if (dragging) { dragging.classList.remove('cpl-dragging'); flash(dragging); dragging = null; }
+		});
+	});
+
+	/* Companies: order, Others, live totals. */
 	var featured = document.querySelector('.cpl-featured');
 	if (featured) {
 		var totalsCell = featured.querySelector('.cpl-totals');
+		var companyBody = featured.querySelector('tbody.cpl-sortable');
 		var boxes = $all('input[name="featured[]"]', featured);
 		var updateTotals = function () {
 			var total = parseInt(totalsCell.getAttribute('data-total'), 10) || 0;
 			var shown = 0;
 			var ticked = 0;
 			boxes.forEach(function (b) {
-				if (b.checked && !b.disabled) { shown += parseInt(b.getAttribute('data-offers'), 10) || 0; ticked++; }
+				b.closest('tr').classList.toggle('cpl-in-others', !b.checked);
+				if (b.checked) { shown += parseInt(b.getAttribute('data-offers'), 10) || 0; ticked++; }
 			});
-			totalsCell.textContent = 'Shown separately: ' + ticked + ' companies, ' + shown + ' offers · Others: ' + (total - shown) + ' offers · Total: ' + total;
+			totalsCell.textContent = 'Own rows: ' + ticked + ' companies, ' + shown + ' offers · Others: ' + (total - shown) + ' offers · Total: ' + total;
 		};
 		boxes.forEach(function (b) { b.addEventListener('change', updateTotals); });
 		$all('[data-cpl-check]').forEach(function (a) {
 			a.addEventListener('click', function (e) {
 				e.preventDefault();
 				var on = a.getAttribute('data-cpl-check') === 'all';
-				boxes.forEach(function (b) { if (!b.disabled) { b.checked = on; } });
+				boxes.forEach(function (b) { b.checked = on; });
 				updateTotals();
+			});
+		});
+		$all('[data-cpl-sort]').forEach(function (a) {
+			a.addEventListener('click', function (e) {
+				e.preventDefault();
+				var by = a.getAttribute('data-cpl-sort');
+				var rows = $all('tr', companyBody);
+				rows.sort(function (x, y) {
+					if (by === 'offers') {
+						return (parseInt(y.getAttribute('data-offers'), 10) - parseInt(x.getAttribute('data-offers'), 10)) ||
+							x.getAttribute('data-name').localeCompare(y.getAttribute('data-name'));
+					}
+					return x.getAttribute('data-name').localeCompare(y.getAttribute('data-name'), undefined, { sensitivity: 'base' });
+				});
+				rows.forEach(function (r) { companyBody.appendChild(r); });
 			});
 		});
 		updateTotals();

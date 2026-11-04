@@ -22,3 +22,21 @@
 .cpl-tag-new { background: #f5e6ab; color: #614200; }
 .cpl-live td, .cpl-live th { padding: 4px 8px; }
 .cpl .notice.inline { margin: 10px 0; }
+.cpl-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cpl-tools .cpl-sep { width: 12px; }
+.cpl-handle-col { width: 84px; white-space: nowrap; }
+.cpl-own-col { width: 64px; text-align: center !important; }
+.cpl-handle { cursor: grab; color: #8c8f94; vertical-align: middle; margin-right: 4px; }
+.cpl-handle:active { cursor: grabbing; }
+.cpl-move { border: 1px solid transparent; background: none; color: #50575e; cursor: pointer; padding: 0 5px; line-height: 20px; border-radius: 3px; font-size: 13px; }
+.cpl-move:hover, .cpl-move:focus { border-color: #8c8f94; color: #1d2327; }
+.cpl-sortable tr:first-child .cpl-move[data-dir="up"], .cpl-sortable tr:last-child .cpl-move[data-dir="down"] { visibility: hidden; }
+.cpl-sortable tr { background: #fff; }
+.cpl-sortable tr:nth-child(even) { background: #f6f7f7; }
+.cpl-featured tr.cpl-in-others td:not(.cpl-handle-col):not(.cpl-own-col) { color: #8c8f94; }
+.cpl-featured tr.cpl-in-others td:nth-child(3)::after { content: "→ Others"; margin-left: 8px; font-size: 11px; color: #8c8f94; }
+.cpl-featured tfoot tr.cpl-in-others td:nth-child(3)::after { content: none; }
+tr.cpl-dragging { opacity: .45; }
+tr.cpl-moved td { animation: cpl-moved 1s ease-out; }
+@keyframes cpl-moved { from { background: #f0f6fc; } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { tr.cpl-moved td { animation: none; } }

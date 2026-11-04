@@ -138,8 +138,8 @@ class CPL_Data {
 	private static function hydrate_year( $row ) {
 		$row['year']              = (int) $row['year'];
 		$row['students_appeared'] = (int) $row['students_appeared'];
-		$featured                 = json_decode( (string) $row['featured'], true );
-		$row['featured']          = is_array( $featured ) ? $featured : array();
+		$row['layout']            = self::parse_layout( $row['featured'] ?? '' );
+		unset( $row['featured'] );
 		$row['footnote']          = (string) $row['footnote'];
 		$row['records_note']      = (string) $row['records_note'];
 		return $row;
@@ -164,10 +164,14 @@ class CPL_Data {
 
 	public static function update_year( $year, array $fields ) {
 		global $wpdb;
-		$allowed = array( 'students_appeared', 'highest_pkg', 'avg_pkg', 'chart_source', 'featured', 'footnote', 'records_note' );
+		$allowed = array( 'students_appeared', 'highest_pkg', 'avg_pkg', 'chart_source', 'footnote', 'records_note' );
 		$data    = array_intersect_key( $fields, array_flip( $allowed ) );
-		if ( isset( $data['featured'] ) && is_array( $data['featured'] ) ) {
-			$data['featured'] = wp_json_encode( array_values( $data['featured'] ) );
+		if ( isset( $fields['layout'] ) && is_array( $fields['layout'] ) ) {
+			// Stored in the "featured" column: company display order, and which companies go into Others.
+			$data['featured'] = wp_json_encode( array(
+				'order'  => array_values( array_map( array( __CLASS__, 'clean' ), (array) ( $fields['layout']['order'] ?? array() ) ) ),
+				'others' => array_values( array_map( array( __CLASS__, 'clean' ), (array) ( $fields['layout']['others'] ?? array() ) ) ),
+			) );
 		}
 		$data['updated_at'] = current_time( 'mysql' );
 		$wpdb->update( CPL_DB::table( 'years' ), $data, array( 'year' => (int) $year ) );
@@ -280,9 +284,48 @@ class CPL_Data {
 		return $out;
 	}
 
+	/** Read the stored layout: ['order' => [company...], 'others' => [company...]]. */
+	public static function parse_layout( $json ) {
+		$raw = json_decode( (string) $json, true );
+		if ( is_array( $raw ) && ( isset( $raw['order'] ) || isset( $raw['others'] ) ) ) {
+			return array(
+				'order'  => array_values( (array) ( $raw['order'] ?? array() ) ),
+				'others' => array_values( (array) ( $raw['others'] ?? array() ) ),
+			);
+		}
+		// Older format: a plain list of companies shown separately, in no particular order.
+		return array( 'order' => is_array( $raw ) ? array_values( $raw ) : array(), 'others' => array() );
+	}
+
+	/**
+	 * Company counts for a calculated year, in the order staff set.
+	 * Companies not in the saved order (e.g. new after an upload) follow, in order of first appearance.
+	 *
+	 * @return array company => ['offers' => int, 'spellings' => [...], 'in_others' => bool]
+	 */
+	public static function ordered_counts( array $year_row, ?array $aliases = null ) {
+		$counts = self::company_counts( self::get_records( $year_row['year'] ), $aliases );
+		$layout = $year_row['layout'];
+		$pos    = array_flip( array_map( array( __CLASS__, 'key' ), $layout['order'] ) );
+		$others = array_flip( array_map( array( __CLASS__, 'key' ), $layout['others'] ) );
+		$i      = 0;
+		$sorted = array();
+		foreach ( $counts as $company => $c ) {
+			$k              = self::key( $company );
+			$c['in_others'] = 'others' === $k || isset( $others[ $k ] );
+			$c['sort']      = isset( $pos[ $k ] ) ? $pos[ $k ] : 100000 + $i;
+			$sorted[ $company ] = $c;
+			$i++;
+		}
+		uasort( $sorted, function ( $a, $b ) {
+			return $a['sort'] <=> $b['sort'];
+		} );
+		return $sorted;
+	}
+
 	/**
 	 * Rows shown for a year: list of [company, offers].
-	 * For calculated years, companies not ticked as "shown separately" are added up into Others.
+	 * For calculated years: companies in the order staff set, then Others (everything grouped into it) last.
 	 */
 	public static function breakdown( array $year_row, ?array $aliases = null ) {
 		if ( self::SOURCE_SUM === $year_row['chart_source'] ) {
@@ -290,28 +333,17 @@ class CPL_Data {
 				return $c[1] > 0;
 			} ) );
 		}
-		$counts   = self::company_counts( self::get_records( $year_row['year'] ), $aliases );
-		$featured = $year_row['featured'];
-		if ( empty( $featured ) ) {
-			$rows = array();
-			foreach ( $counts as $company => $c ) {
-				$rows[] = array( $company, $c['offers'] );
-			}
-			return $rows;
-		}
-		$featured_keys = array_map( array( __CLASS__, 'key' ), $featured );
-		$rows          = array();
-		$others        = 0;
-		$others_name   = self::OTHERS;
-		foreach ( $counts as $company => $c ) {
-			$k = self::key( $company );
-			if ( 'others' === $k ) {
-				$others     += $c['offers'];
-				$others_name = $company;
-			} elseif ( in_array( $k, $featured_keys, true ) ) {
-				$rows[] = array( $company, $c['offers'] );
-			} else {
+		$rows        = array();
+		$others      = 0;
+		$others_name = self::OTHERS;
+		foreach ( self::ordered_counts( $year_row, $aliases ) as $company => $c ) {
+			if ( $c['in_others'] ) {
 				$others += $c['offers'];
+				if ( 'others' === self::key( $company ) ) {
+					$others_name = $company;
+				}
+			} else {
+				$rows[] = array( $company, $c['offers'] );
 			}
 		}
 		if ( $others > 0 ) {

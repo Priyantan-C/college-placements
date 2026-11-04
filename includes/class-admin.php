@@ -337,11 +337,8 @@ class CPL_Admin {
 		}
 		$aliases   = CPL_Data::get_aliases();
 		$records   = CPL_Data::get_records( $year );
-		$counts    = CPL_Data::company_counts( $records, $aliases );
+		$counts    = CPL_Data::ordered_counts( $y, $aliases );
 		$summary   = CPL_Data::get_summary( $year );
-		$featured  = $y['featured'];
-		$all_shown = empty( $featured );
-		$feat_keys = array_map( array( 'CPL_Data', 'key' ), $featured );
 		$calc_total = count( $records );
 		$sum_total  = array_sum( array_column( $summary, 1 ) );
 		$is_summary = CPL_Data::SOURCE_SUM === $y['chart_source'];
@@ -383,29 +380,48 @@ class CPL_Admin {
 
 			<?php if ( $records ) : ?>
 			<div class="cpl-panel" data-panel="records">
-				<h3>Companies shown separately</h3>
-				<p class="description">Tick the companies that get their own row. Everything unticked is added up into <strong>Others</strong>.
-					<a href="#" data-cpl-check="all">Tick all</a> · <a href="#" data-cpl-check="none">Untick all</a></p>
-				<table class="widefat striped cpl-featured">
-					<thead><tr><th class="check-column"></th><th>Company</th><th class="num">Offers</th><th>Spellings in the list</th></tr></thead>
-					<tbody>
-					<?php foreach ( $counts as $company => $c ) :
-						$is_others = 'others' === CPL_Data::key( $company );
-						$checked   = ! $is_others && ( $all_shown || in_array( CPL_Data::key( $company ), $feat_keys, true ) );
-						$spell     = array();
+				<h3>Companies: order and Others</h3>
+				<p class="description">Drag the rows (or use the arrows) to set the order companies appear in the charts and the company table. Untick a company to add it into <strong>Others</strong>, which always comes last.</p>
+				<p class="cpl-tools">
+					<button type="button" class="button button-small" data-cpl-sort="offers">Sort by offers</button>
+					<button type="button" class="button button-small" data-cpl-sort="name">Sort A–Z</button>
+					<span class="cpl-sep"></span>
+					<button type="button" class="button-link" data-cpl-check="all">Tick all</button> ·
+					<button type="button" class="button-link" data-cpl-check="none">Untick all</button>
+				</p>
+				<table class="widefat cpl-featured">
+					<thead><tr><th class="cpl-handle-col"><span class="screen-reader-text">Move</span></th><th class="cpl-own-col">Own row</th><th>Company</th><th class="num">Offers</th><th>Spellings in the list</th></tr></thead>
+					<tbody class="cpl-sortable">
+					<?php
+					$fixed_others = null;
+					foreach ( $counts as $company => $c ) :
+						if ( 'others' === CPL_Data::key( $company ) ) {
+							$fixed_others = array( $company, $c );
+							continue;
+						}
+						$spell = array();
 						foreach ( $c['spellings'] as $s => $n ) {
 							$spell[] = $s . ' (' . $n . ')';
 						}
 						?>
-						<tr>
-							<td><input type="checkbox" name="featured[]" value="<?php echo esc_attr( $company ); ?>" data-offers="<?php echo esc_attr( $c['offers'] ); ?>" <?php checked( $checked ); ?> <?php disabled( $is_others ); ?>></td>
+						<tr data-name="<?php echo esc_attr( $company ); ?>" data-offers="<?php echo esc_attr( $c['offers'] ); ?>" class="<?php echo $c['in_others'] ? 'cpl-in-others' : ''; ?>">
+							<td class="cpl-handle-col"><span class="cpl-handle dashicons dashicons-menu" draggable="true" title="Drag to reorder" aria-hidden="true"></span>
+								<button type="button" class="cpl-move" data-dir="up" aria-label="Move <?php echo esc_attr( $company ); ?> up">↑</button><button type="button" class="cpl-move" data-dir="down" aria-label="Move <?php echo esc_attr( $company ); ?> down">↓</button>
+								<input type="hidden" name="order[]" value="<?php echo esc_attr( $company ); ?>"></td>
+							<td class="cpl-own-col"><input type="checkbox" name="featured[]" value="<?php echo esc_attr( $company ); ?>" data-offers="<?php echo esc_attr( $c['offers'] ); ?>" <?php checked( ! $c['in_others'] ); ?> aria-label="Show <?php echo esc_attr( $company ); ?> as its own row"></td>
 							<td><?php echo esc_html( $company ); ?></td>
 							<td class="num"><?php echo esc_html( $c['offers'] ); ?></td>
 							<td class="description"><?php echo esc_html( implode( ', ', $spell ) ); ?></td>
 						</tr>
 					<?php endforeach; ?>
 					</tbody>
-					<tfoot><tr><td></td><td colspan="3" class="cpl-totals" data-total="<?php echo esc_attr( $calc_total ); ?>"></td></tr></tfoot>
+					<tfoot>
+						<?php if ( $fixed_others ) : ?>
+						<tr class="cpl-in-others"><td></td><td></td><td><?php echo esc_html( $fixed_others[0] ); ?> <span class="description">(written as “Others” in the list; always in Others)</span></td>
+							<td class="num"><?php echo esc_html( $fixed_others[1]['offers'] ); ?></td><td></td></tr>
+						<?php endif; ?>
+						<tr><td></td><td colspan="4" class="cpl-totals" data-total="<?php echo esc_attr( $calc_total ); ?>"></td></tr>
+					</tfoot>
 				</table>
 				<p class="description">Names look wrong or split? Fix them under <a href="<?php echo esc_url( self::url( 'names' ) ); ?>">Company names</a>.</p>
 			</div>
@@ -413,19 +429,21 @@ class CPL_Admin {
 
 			<div class="cpl-panel" data-panel="summary">
 				<h3>Summary numbers</h3>
-				<p class="description">Used only when the charts are set to “Summary numbers”. Rows with an empty company name are removed.</p>
+				<p class="description">Used only when the charts are set to “Summary numbers”. Drag rows to change the order. Rows with an empty company name are removed.</p>
 				<table class="widefat cpl-summary">
-					<thead><tr><th>Company</th><th class="num">Offers</th><th></th></tr></thead>
-					<tbody>
+					<thead><tr><th class="cpl-handle-col"><span class="screen-reader-text">Move</span></th><th>Company</th><th class="num">Offers</th><th></th></tr></thead>
+					<tbody class="cpl-sortable">
 					<?php foreach ( array_merge( $summary, array( array( '', '' ) ) ) as $row ) : ?>
 						<tr>
+							<td class="cpl-handle-col"><span class="cpl-handle dashicons dashicons-menu" draggable="true" title="Drag to reorder" aria-hidden="true"></span>
+								<button type="button" class="cpl-move" data-dir="up" aria-label="Move up">↑</button><button type="button" class="cpl-move" data-dir="down" aria-label="Move down">↓</button></td>
 							<td><input type="text" name="summary_company[]" value="<?php echo esc_attr( $row[0] ); ?>" class="regular-text"></td>
 							<td class="num"><input type="number" min="0" name="summary_offers[]" value="<?php echo esc_attr( $row[1] ); ?>" class="small-text"></td>
 							<td><button type="button" class="button-link cpl-remove-row">Remove</button></td>
 						</tr>
 					<?php endforeach; ?>
 					</tbody>
-					<tfoot><tr><td><button type="button" class="button cpl-add-row">Add row</button></td><td class="num cpl-sum-total"></td><td></td></tr></tfoot>
+					<tfoot><tr><td></td><td><button type="button" class="button cpl-add-row">Add row</button></td><td class="num cpl-sum-total"></td><td></td></tr></tfoot>
 				</table>
 			</div>
 
@@ -456,17 +474,13 @@ class CPL_Admin {
 
 		$source = CPL_Data::SOURCE_SUM === self::post( 'chart_source' ) ? CPL_Data::SOURCE_SUM : CPL_Data::SOURCE_REC;
 
-		// Featured companies: if every company is ticked, store an empty list so new companies show up too.
-		$featured = array_map( array( 'CPL_Data', 'clean' ), (array) self::post( 'featured', array() ) );
-		$counts   = CPL_Data::company_counts( CPL_Data::get_records( $year ) );
-		$all      = array_filter( array_keys( $counts ), function ( $c ) {
-			return 'others' !== CPL_Data::key( $c );
-		} );
-		if ( count( array_intersect( array_map( array( 'CPL_Data', 'key' ), $all ), array_map( array( 'CPL_Data', 'key' ), $featured ) ) ) === count( $all ) ) {
-			$featured = array();
-		} elseif ( ! $featured ) {
-			$featured = array( CPL_Data::OTHERS ); // Nothing ticked: everything goes into Others.
-		}
+		// Company order (row order on screen) and the unticked companies, which go into Others.
+		// Only the unticked ones are stored, so companies that appear in a later upload get their own row by default.
+		$order    = array_map( array( 'CPL_Data', 'clean' ), (array) self::post( 'order', array() ) );
+		$featured = array_map( array( 'CPL_Data', 'key' ), (array) self::post( 'featured', array() ) );
+		$others   = array_values( array_filter( $order, function ( $c ) use ( $featured ) {
+			return ! in_array( CPL_Data::key( $c ), $featured, true );
+		} ) );
 
 		CPL_Data::update_year( $year, array(
 			'students_appeared' => absint( self::post( 'students_appeared', 0 ) ),
@@ -475,7 +489,7 @@ class CPL_Admin {
 			'records_note'      => sanitize_text_field( self::post( 'records_note' ) ),
 			'footnote'          => sanitize_text_field( self::post( 'footnote' ) ),
 			'chart_source'      => $source,
-			'featured'          => $featured,
+			'layout'            => array( 'order' => $order, 'others' => $others ),
 		) );
 
 		$names  = (array) self::post( 'summary_company', array() );

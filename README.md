@@ -16,7 +16,7 @@ WordPress plugin that draws placement charts and year-wise student placement tab
 
 1. **Placements → Upload student list**: pick the year and upload the Excel file. It needs a header row with at least `Name` and `Org` (or Organization / Company). `Sl No`, `Dept` and `U R N` (or University Roll Number) are used when present. A title row above the header is fine.
 2. Check the preview. Change the "Counts as company" box to merge spellings (e.g. `CTS` → `Cognizant`). Matches are remembered for later uploads.
-3. Save. On the year's page, fill in students appeared, highest and average package, and tick the companies shown separately. The rest go into **Others**.
+3. Save. On the year's page, fill in students appeared, highest and average package. In the company list, drag rows (or use the arrows) to set the order, and untick companies to group them into **Others**, which always comes last.
 
 The charts and tables update immediately.
 
