@@ -3,7 +3,7 @@ Contributors: priyantanc
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,6 +20,9 @@ Shortcodes:
 * `[placement_records]` – year-wise student tables (`years="2026,2025"`, `open="first|all|none"`).
 
 == Changelog ==
+
+= 1.2.1 =
+* Fix: the "Earlier" years dropdown showed repeated arrows when an earlier year was chosen, or when the theme styles dropdowns.
 
 = 1.2.0 =
 * New look: year pills, stat tiles (offers with change vs last year, students eligible, packages, recruiters), colourful ranked bars with soft gradients.

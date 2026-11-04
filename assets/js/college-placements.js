@@ -231,10 +231,13 @@
 		});
 		var earlier = null;
 		if (older.length) {
-			earlier = el('select', { 'class': 'cpl-pill cpl-pill-select', 'aria-label': 'Earlier years' });
+			earlier = el('select', { 'class': 'cpl-pill-select', 'aria-label': 'Earlier years' });
 			earlier.appendChild(el('option', { value: '', text: 'Earlier' }));
 			older.forEach(function (y) { earlier.appendChild(el('option', { value: y.year, text: String(y.year) })); });
-			pills.appendChild(earlier);
+			// The arrow is a separate icon, not a background image, so themes that style <select> can't tile or double it.
+			var earlierWrap = el('span', { 'class': 'cpl-pill cpl-pill-dropdown' }, [earlier]);
+			earlierWrap.insertAdjacentHTML('beforeend', '<svg class="cpl-pill-caret" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M5.5 7.5 10 12l4.5-4.5 1 1L10 14 4.5 8.5z"/></svg>');
+			pills.appendChild(earlierWrap);
 		}
 		var tableBtn = actionButton('Table', ICON_TABLE);
 		var dlBtn = actionButton('Download', ICON_DOWNLOAD);
@@ -278,7 +281,7 @@
 			if (earlier) {
 				var isOld = older.some(function (o) { return o.year === y.year; });
 				earlier.value = isOld ? String(y.year) : '';
-				earlier.classList.toggle('is-active', isOld);
+				earlier.parentNode.classList.toggle('is-active', isOld);
 			}
 
 			/* Tiles */

@@ -38,11 +38,16 @@
 }
 .cpl-pill:hover, .cpl-seg:hover { border-color: var(--cpl-accent); color: var(--cpl-accent); background: var(--cpl-surface); }
 .cpl-pill.is-active, .cpl-seg.is-active { background: var(--cpl-primary); border-color: var(--cpl-primary); color: #fff; }
-.cpl-pill-select {
-	padding-right: 34px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23565d66' d='M5.5 7.5 10 12l4.5-4.5 1 1L10 14 4.5 8.5z'/%3E%3C/svg%3E");
-	background-repeat: no-repeat; background-position: right 10px center; background-size: 16px; width: auto; height: auto; min-height: 0;
+.cpl-pill-dropdown { position: relative; display: inline-flex; align-items: center; padding: 0; overflow: hidden; }
+.cpl-widget .cpl-pill-dropdown select {
+	appearance: none; -webkit-appearance: none; -moz-appearance: none;
+	margin: 0; border: 0; border-radius: 999px; box-shadow: none; outline-offset: -2px;
+	background: transparent none !important; color: inherit; font: inherit; font-weight: 600; line-height: 1.2;
+	width: auto; height: auto; min-height: 0; max-width: none; padding: 7px 34px 7px 16px; cursor: pointer;
 }
-.cpl-pill-select.is-active { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23fff' d='M5.5 7.5 10 12l4.5-4.5 1 1L10 14 4.5 8.5z'/%3E%3C/svg%3E"); }
+.cpl-widget .cpl-pill-dropdown select option { color: #1d2327; background: #fff; }
+.cpl-pill-caret { position: absolute; right: 12px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%); pointer-events: none; }
+.cpl-pill-dropdown:focus-within { outline: 2px solid var(--cpl-accent); outline-offset: 2px; }
 .cpl-segmented { padding: 3px; border: 1px solid var(--cpl-line); border-radius: 999px; background: var(--cpl-wash); gap: 2px; }
 .cpl-seg { border-color: transparent; background: transparent; padding: 6px 16px; font-size: 14px; }
 .cpl-actions { display: flex; gap: 6px; }
@@ -87,6 +92,9 @@
 	.cpl-pills { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; min-width: 0; padding-bottom: 2px; }
 	.cpl-pills::-webkit-scrollbar { display: none; }
 	.cpl-pill { padding: 6px 12px; font-size: 14px; flex: none; }
+	.cpl-pill-dropdown { padding: 0; }
+	.cpl-widget .cpl-pill-dropdown select { padding: 6px 30px 6px 12px; }
+	.cpl-pill-caret { right: 10px; }
 	.cpl-seg { padding: 6px 12px; font-size: 13px; }
 	.cpl-rec-toolbar .cpl-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
 	.cpl-chip { flex: none; }
