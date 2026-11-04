@@ -163,15 +163,18 @@
 		};
 	}
 
-	function baseOptions(f, title, subtitle) {
+	/* On the page the title and subtitle are HTML headings (they wrap and use the theme's heading font).
+	   Downloads draw them inside the image instead, at desktop size, so a PNG saved on a phone looks right. */
+	function baseOptions(f, title, subtitle, forExport) {
 		return {
-			responsive: true,
+			responsive: !forExport,
 			maintainAspectRatio: false,
-			animation: REDUCED ? false : { duration: 700, easing: 'easeOutQuart' },
-			layout: { padding: { top: 4, right: 12, bottom: 4, left: 4 } },
+			devicePixelRatio: forExport ? 2 : undefined,
+			animation: forExport || REDUCED ? false : { duration: 700, easing: 'easeOutQuart' },
+			layout: { padding: forExport ? { top: 12, right: 24, bottom: 12, left: 16 } : { top: 4, right: 12, bottom: 4, left: 4 } },
 			plugins: {
-				title: { display: true, text: title, align: 'start', color: INK.primary, font: { family: f.heading, size: 18, weight: '600' }, padding: { top: 6, bottom: 2 } },
-				subtitle: { display: !!subtitle, text: subtitle, align: 'start', color: INK.secondary, font: { family: f.body, size: 13 }, padding: { bottom: 14 } },
+				title: { display: !!forExport, text: title, align: 'start', color: INK.primary, font: { family: f.heading, size: 18, weight: '600' }, padding: { top: 6, bottom: 2 } },
+				subtitle: { display: !!forExport && !!subtitle, text: subtitle, align: 'start', color: INK.secondary, font: { family: f.body, size: 13 }, padding: { bottom: 14 } },
 				legend: { display: false },
 				tooltip: {
 					backgroundColor: '#1d2327', titleColor: '#fff', bodyColor: '#fff', padding: 10, cornerRadius: 6, boxPadding: 4,
@@ -192,19 +195,44 @@
 
 	/* ---------- Shared bits: download, table view, lazy render ---------- */
 
-	function downloadChart(chart, filename) {
-		var prev = chart.options.devicePixelRatio;
-		chart.options.devicePixelRatio = Math.max(2, window.devicePixelRatio || 1);
-		chart.resize();
-		chart.update('none');
-		var url = chart.toBase64Image('image/png', 1);
-		chart.options.devicePixelRatio = prev;
-		chart.resize();
-		chart.update('none');
+	/* Render a fresh copy of the chart off-screen at a fixed desktop size and save it as a PNG. */
+	function exportChart(buildConfig, width, height, filename) {
+		var holder = el('div', { style: 'position:fixed;left:-10000px;top:0;width:' + width + 'px;height:' + height + 'px;' });
+		var c = el('canvas', { width: String(width), height: String(height) });
+		holder.appendChild(c);
+		document.body.appendChild(holder);
+		var copy = new window.Chart(c, buildConfig(true));
+		var url = copy.toBase64Image('image/png', 1);
+		copy.destroy();
+		holder.remove();
 		var a = el('a', { href: url, download: filename + '.png' });
 		document.body.appendChild(a);
 		a.click();
 		a.remove();
+	}
+
+	/* Heading shown above a chart on the page. */
+	function chartHead() {
+		var h = el('h3', { 'class': 'cpl-chart-title' });
+		var sub = el('p', { 'class': 'cpl-chart-sub' });
+		return { node: el('div', { 'class': 'cpl-chart-head' }, [h, sub]), title: h, sub: sub };
+	}
+
+	/* Year buttons: a single scrollable row on small screens, with a fade + arrow while more years are hidden. */
+	function scrollHint(scroller, wrap) {
+		var more = el('button', { type: 'button', 'class': 'cpl-more', 'aria-label': 'Show more years', tabindex: '-1' });
+		more.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M7.5 5.5 12 10l-4.5 4.5 1 1L14 10 8.5 4.5z"/></svg>';
+		wrap.appendChild(more);
+		function update() {
+			var max = scroller.scrollWidth - scroller.clientWidth;
+			wrap.classList.toggle('has-more-right', max > 4 && scroller.scrollLeft < max - 4);
+			wrap.classList.toggle('has-more-left', scroller.scrollLeft > 4);
+		}
+		more.addEventListener('click', function () { scroller.scrollBy({ left: scroller.clientWidth * 0.7, behavior: REDUCED ? 'auto' : 'smooth' }); });
+		scroller.addEventListener('scroll', update, { passive: true });
+		window.addEventListener('resize', update);
+		update();
+		return update;
 	}
 
 	function actionButton(label, icon) {
@@ -267,7 +295,8 @@
 		var tableBtn = actionButton('Table', ICON_TABLE);
 		var dlBtn = actionButton('Download', ICON_DOWNLOAD);
 		dlBtn.setAttribute('aria-label', 'Download chart as image');
-		var toolbar = el('div', { 'class': 'cpl-toolbar' }, [pills, el('div', { 'class': 'cpl-actions' }, [tableBtn, dlBtn])]);
+		var pillsWrap = el('div', { 'class': 'cpl-pills-wrap' }, [pills]);
+		var toolbar = el('div', { 'class': 'cpl-toolbar' }, [pillsWrap, el('div', { 'class': 'cpl-actions' }, [tableBtn, dlBtn])]);
 
 		var status = el('div', { 'class': 'cpl-year-status', hidden: '' });
 		var tiles = el('div', { 'class': 'cpl-tiles' });
@@ -276,15 +305,18 @@
 		canvasWrap.appendChild(canvas);
 		var tableWrap = el('div', { 'class': 'cpl-data-table', hidden: '' });
 		var foot = el('p', { 'class': 'cpl-footnote', hidden: '' });
-		var card = el('div', { 'class': 'cpl-card' }, [canvasWrap, tableWrap, foot]);
+		var head = chartHead();
+		var card = el('div', { 'class': 'cpl-card' }, [head.node, canvasWrap, tableWrap, foot]);
 
 		root.appendChild(toolbar);
 		root.appendChild(status);
 		root.appendChild(tiles);
 		root.appendChild(card);
 		tableToggle(tableBtn, tableWrap);
+		var updateHint = scrollHint(pills, pillsWrap);
 
 		var chart = null;
+		var buildConfig = null;
 
 		function tile(label, value, extra) {
 			return el('div', { 'class': 'cpl-tile' }, [
@@ -309,6 +341,11 @@
 				earlier.value = isOld ? String(y.year) : '';
 				earlier.parentNode.classList.toggle('is-active', isOld);
 			}
+			var activePill = pills.querySelector('.is-active');
+			if (activePill && pills.scrollWidth > pills.clientWidth) {
+				pills.scrollTo({ left: activePill.offsetLeft - pills.clientWidth / 2 + activePill.offsetWidth / 2, behavior: REDUCED ? 'auto' : 'smooth' });
+			}
+			updateHint();
 
 			/* Ongoing badge */
 			status.innerHTML = '';
@@ -329,8 +366,11 @@
 
 			/* Chart */
 			var subtitle = [data.college, total + ' offers' + (y.appeared ? ' · ' + y.appeared + ' students eligible' : '')].filter(Boolean).join(' · ');
+			var pageSubtitle = subtitle;
 			if (y.ongoing) { subtitle += ' · Ongoing' + (y.updated ? ', updated ' + y.updated : ''); }
 			var title = titleBase + ' – ' + y.year;
+			head.title.textContent = title;
+			head.sub.textContent = pageSubtitle;
 			canvas.setAttribute('aria-label', title + '. ' + rows.map(function (r) { return r[0] + ' ' + r[1]; }).join(', '));
 			canvasWrap.style.height = Math.max(300, rows.length * 34 + 110) + 'px';
 			var companyRows = rows.filter(function (r) { return !isOthers(r[0]); }).length;
@@ -343,7 +383,7 @@
 				return colours[n];
 			};
 
-			var cfg = {
+			buildConfig = function (forExport) { return {
 				type: 'bar',
 				data: {
 					labels: rows.map(function (r) { return r[0]; }),
@@ -366,7 +406,7 @@
 					}]
 				},
 				options: (function () {
-					var o = baseOptions(f, title, subtitle);
+					var o = baseOptions(f, title, subtitle, forExport);
 					o.indexAxis = 'y';
 					o.plugins.cplValues.enabled = true;
 					o.plugins.tooltip.callbacks = {
@@ -384,14 +424,14 @@
 					yAxis.grid = { display: false };
 					yAxis.ticks.color = INK.primary;
 					yAxis.ticks.font = { family: f.body, size: 13 };
-					yAxis.ticks.callback = function (v) { return truncate(this.getLabelForValue(v), window.innerWidth < 600 ? 18 : 30); };
+					yAxis.ticks.callback = function (v) { return truncate(this.getLabelForValue(v), forExport ? 40 : (window.innerWidth < 600 ? 18 : 30)); };
 					o.scales = { x: x, y: yAxis };
 					return o;
 				}()),
 				plugins: [surfacePlugin, valueLabelPlugin]
-			};
+			}; };
 			if (chart) { chart.destroy(); }
-			chart = new window.Chart(canvas, cfg);
+			chart = new window.Chart(canvas, buildConfig(false));
 
 			/* Table view */
 			tableWrap.innerHTML = '';
@@ -424,7 +464,11 @@
 			});
 		}
 		dlBtn.addEventListener('click', function () {
-			if (chart) { downloadChart(chart, 'placements-' + current.year); }
+			if (!buildConfig) { show(current); }
+			if (buildConfig) {
+				var n = chart ? chart.data.labels.length : 10;
+				exportChart(buildConfig, 1100, Math.max(420, n * 36 + 170), 'placements-' + current.year);
+			}
 		});
 
 		whenVisible(root, function () { show(current); });
@@ -472,7 +516,11 @@
 		canvasWrap.appendChild(canvas);
 		var tableWrap = el('div', { 'class': 'cpl-data-table', hidden: '' });
 		root.appendChild(toolbar);
-		root.appendChild(el('div', { 'class': 'cpl-card' }, [canvasWrap, tableWrap]));
+		var trendSub = span + ' · offers by company, with total offers and students appeared';
+		var head = chartHead();
+		head.title.textContent = title;
+		head.sub.textContent = trendSub;
+		root.appendChild(el('div', { 'class': 'cpl-card' }, [head.node, canvasWrap, tableWrap]));
 		tableToggle(tableBtn, tableWrap);
 
 		var chart = null;
@@ -482,10 +530,13 @@
 
 		/* One chart: offers stacked by company (top recruiters + the rest), with a Total offers line
 		   and a Students appeared line on the same axis (both are counts of students). */
-		function draw() {
-			var o = baseOptions(f, title, span + ' · offers by company, with total offers and students appeared');
+		function buildConfig(forExport) {
+			var narrow = !forExport && root.clientWidth < 520;
+			var o = baseOptions(f, title, trendSub, forExport);
 			var x = axisStyle(f);
 			x.grid = { display: false };
+			x.ticks.maxRotation = 0;
+			x.ticks.autoSkipPadding = 6;
 			x.stacked = true;
 			var yAxis = axisStyle(f);
 			yAxis.beginAtZero = true;
@@ -498,12 +549,12 @@
 			o.plugins.legend = {
 				display: true, position: 'top', align: 'start',
 				labels: {
-					color: INK.secondary, font: { family: f.body, size: 12 }, boxWidth: 12, boxHeight: 12, padding: 14,
+					color: INK.secondary, font: { family: f.body, size: narrow ? 11 : 12 }, boxWidth: 12, boxHeight: 12, padding: narrow ? 8 : 14,
 					generateLabels: function (c) {
 						return c.data.datasets.map(function (ds, i) {
 							var line = ds.type === 'line';
 							return {
-								text: ds.label, datasetIndex: i, hidden: !c.isDatasetVisible(i),
+								text: narrow ? truncate(ds.label, 18) : ds.label, datasetIndex: i, hidden: !c.isDatasetVisible(i),
 								fillStyle: line ? '#fff' : ds.backgroundColor, strokeStyle: line ? ds.borderColor : 'transparent',
 								lineWidth: line ? 2 : 0, lineDash: ds.borderDash || [], pointStyle: line ? (ds.pointStyle || 'circle') : 'rectRounded',
 								fontColor: INK.secondary
@@ -546,13 +597,17 @@
 			canvas.setAttribute('aria-label', title + ', ' + span + '. ' + years.map(function (y, i) {
 				return y.year + ': ' + totals[i] + ' offers' + (y.appeared ? ', ' + y.appeared + ' students appeared' : '');
 			}).join('; '));
-			if (chart) { chart.destroy(); }
-			chart = new window.Chart(canvas, {
+			return {
 				type: 'bar',
 				data: { labels: labels, datasets: datasets },
 				options: o,
 				plugins: [surfacePlugin, lineLabelPlugin(maxIndex, totals.length - 1, f)]
-			});
+			};
+		}
+
+		function draw() {
+			if (chart) { chart.destroy(); }
+			chart = new window.Chart(canvas, buildConfig(false));
 			buildTable();
 		}
 
@@ -575,14 +630,26 @@
 			]));
 		}
 
-		dlBtn.addEventListener('click', function () { if (chart) { downloadChart(chart, slug(title)); } });
+		dlBtn.addEventListener('click', function () { exportChart(buildConfig, 1200, 600, slug(title)); });
 
 		whenVisible(root, draw);
+	}
+
+	/* Match the theme: heading font for chart titles, and the page colour behind the year buttons' fade. */
+	function themeVars(root) {
+		root.style.setProperty('--cpl-heading-font', fonts(root).heading);
+		var n = root.parentElement;
+		while (n) {
+			var bg = getComputedStyle(n).backgroundColor;
+			if (bg && bg !== 'transparent' && !/rgba\(.*,\s*0\)$/.test(bg)) { root.style.setProperty('--cpl-page', bg); break; }
+			n = n.parentElement;
+		}
 	}
 
 	function boot() {
 		var data = window.CPL_DATA;
 		if (!data || !window.Chart) { return; }
+		document.querySelectorAll('.cpl-trend, .cpl-year').forEach(themeVars);
 		document.querySelectorAll('.cpl-trend').forEach(function (root) { renderTrend(root, data); });
 		document.querySelectorAll('.cpl-year').forEach(function (root) { renderYear(root, data); });
 	}

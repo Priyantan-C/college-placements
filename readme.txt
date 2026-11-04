@@ -3,7 +3,7 @@ Contributors: priyantanc
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,6 +20,11 @@ Shortcodes:
 * `[placement_records]` – year-wise student tables (`years="2026,2025"`, `open="first|all|none"`).
 
 == Changelog ==
+
+= 1.3.1 =
+* Chart titles are now page headings: they wrap on phones and use the theme's heading font. Downloads still include the title, drawn at desktop size even when saved from a phone.
+* Phones: Table and Download buttons are hidden; year buttons scroll in one row with a fade and arrow showing there are more; the selected year scrolls into view.
+* Trend chart on phones: taller, compact legend, level year labels.
 
 = 1.3.0 =
 * Trend chart is now one combined chart: offers stacked by company with a Total offers line and a Students appeared line (the view toggle is gone).
