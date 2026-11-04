@@ -10,8 +10,6 @@
 	--cpl-line: #e3e6ea;
 	--cpl-surface: #ffffff;
 	--cpl-wash: #f4f7fb;
-	--cpl-up: #006300;
-	--cpl-down: #b42318;
 	--cpl-radius: 10px;
 	--cpl-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .06);
 	box-sizing: border-box;
@@ -67,10 +65,6 @@
 .cpl-tile::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, #004287, #1e73be, #6250d6, #d9468f, #ff5722); }
 .cpl-tile-label { font-size: 13px; font-weight: 600; color: var(--cpl-ink-2); text-transform: uppercase; letter-spacing: .04em; }
 .cpl-tile-value { font-size: 30px; font-weight: 700; line-height: 1.15; color: var(--cpl-ink); }
-.cpl-delta { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; font-weight: 600; }
-.cpl-delta svg { width: 14px; height: 14px; }
-.cpl-delta.is-up { color: var(--cpl-up); }
-.cpl-delta.is-down { color: var(--cpl-down); }
 
 /* ---------- Chart card ---------- */
 .cpl-card {

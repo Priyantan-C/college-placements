@@ -187,8 +187,6 @@
 	}
 	var ICON_DOWNLOAD = '<svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M9.25 3h1.5v8.19l2.97-2.97 1.06 1.06L10 14.06 5.22 9.28l1.06-1.06 2.97 2.97V3ZM4 15.5h12V17H4z"/></svg>';
 	var ICON_TABLE = '<svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M3 4h14v12H3V4Zm1.5 1.5v2.25h11V5.5h-11Zm0 3.75v2.25h4.75V9.25H4.5Zm6.25 0v2.25h4.75V9.25h-4.75ZM4.5 13v1.5h4.75V13H4.5Zm6.25 0v1.5h4.75V13h-4.75Z"/></svg>';
-	var ICON_UP = '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 3.5 13 9h-3.25v3.5h-3.5V9H3z"/></svg>';
-	var ICON_DOWN = '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 12.5 3 7h3.25V3.5h3.5V7H13z"/></svg>';
 
 	function tableToggle(button, wrap) {
 		button.setAttribute('aria-expanded', 'false');
@@ -271,7 +269,6 @@
 			current = y;
 			var rows = y.rows.filter(function (r) { return r[1] > 0; });
 			var total = sum(rows);
-			var prev = byYear[y.year - 1];
 
 			pillButtons.forEach(function (b) {
 				var on = parseInt(b.getAttribute('data-year'), 10) === y.year;
@@ -286,15 +283,7 @@
 
 			/* Tiles */
 			tiles.innerHTML = '';
-			var delta = null;
-			if (prev) {
-				var d = total - sum(prev.rows);
-				if (d !== 0) {
-					delta = el('span', { 'class': 'cpl-delta ' + (d > 0 ? 'is-up' : 'is-down') });
-					delta.innerHTML = (d > 0 ? ICON_UP : ICON_DOWN) + '<span>' + Math.abs(d) + ' vs ' + prev.year + '</span>';
-				}
-			}
-			tiles.appendChild(tile('Total offers', total, delta));
+			tiles.appendChild(tile('Total offers', total));
 			tiles.appendChild(tile('Students eligible', y.appeared || ''));
 			tiles.appendChild(tile('Highest package', y.highest && y.highest !== 'N/A' ? y.highest : ''));
 			tiles.appendChild(tile('Average package', y.avg && y.avg !== 'N/A' ? y.avg : ''));

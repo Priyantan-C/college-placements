@@ -3,7 +3,7 @@ Contributors: priyantanc
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.2.1
+Stable tag: 1.2.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,11 +21,14 @@ Shortcodes:
 
 == Changelog ==
 
+= 1.2.2 =
+* Removed the change-vs-last-year note from the Total offers tile.
+
 = 1.2.1 =
 * Fix: the "Earlier" years dropdown showed repeated arrows when an earlier year was chosen, or when the theme styles dropdowns.
 
 = 1.2.0 =
-* New look: year pills, stat tiles (offers with change vs last year, students eligible, packages, recruiters), colourful ranked bars with soft gradients.
+* New look: year pills, stat tiles (total offers, students eligible, packages, recruiters), colourful ranked bars with soft gradients.
 * Trend chart: colourful total-offers bars with the students-appeared line, plus a "By company" view of the top 8 recruiters.
 * Every chart: Download as PNG (white background, high resolution) and a Table view.
 * Student tables: search (name, roll number or company, including merged names), department filters, offer counts per year, card layout on phones.
