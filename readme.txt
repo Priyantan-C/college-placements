@@ -3,7 +3,7 @@ Contributors: priyantanc
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 8.0
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,6 +20,13 @@ Shortcodes:
 * `[placement_records]` – year-wise student tables (`years="2026,2025"`, `open="first|all|none"`).
 
 == Changelog ==
+
+= 1.2.0 =
+* New look: year pills, stat tiles (offers with change vs last year, students eligible, packages, recruiters), colourful ranked bars with soft gradients.
+* Trend chart: colourful total-offers bars with the students-appeared line, plus a "By company" view of the top 8 recruiters.
+* Every chart: Download as PNG (white background, high resolution) and a Table view.
+* Student tables: search (name, roll number or company, including merged names), department filters, offer counts per year, card layout on phones.
+* Company names page now also lists spellings from summary numbers, so they can be merged too.
 
 = 1.1.0 =
 * Set the order companies appear in the charts and company table: drag rows, use the arrow buttons, or sort by offers / A–Z. Works for calculated and summary years.

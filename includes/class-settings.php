@@ -34,6 +34,7 @@ class CPL_Settings {
 			$clean[ $key ] = sanitize_text_field( $values[ $key ] ?? '' );
 		}
 		update_option( self::OPTION, $clean );
+		CPL_Data::flush_cache();
 	}
 
 	/** Fill {college} and {year} into a heading. */

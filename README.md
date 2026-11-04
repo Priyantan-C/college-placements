@@ -24,11 +24,11 @@ The charts and tables update immediately.
 
 | Shortcode | What it shows |
 |---|---|
-| `[placement_trend]` | Placements over the years: stacked bars per company, plus Total Placements and Total Students Appeared lines |
-| `[placement_year]` | Year picker, pie chart, totals and company table (`year="2026"` to start on a given year) |
-| `[placement_records]` | Year-wise student tables (`years="2026,2025"`, `open="first"`, `"all"` or `"none"`) |
+| `[placement_trend]` | Placements over the years: total offers per year with the students-appeared line, or a "By company" view (`view="companies"` to start there) |
+| `[placement_year]` | Year pills, stat tiles and ranked company bars (`year="2026"` to start on a given year) |
+| `[placement_records]` | Year-wise student tables with search and department filters (`years="2026,2025"`, `open="first"`, `"all"` or `"none"`) |
 
-`[placement_trend]` and `[placement_year]` also accept `title="…"`.
+`[placement_trend]` and `[placement_year]` also accept `title="…"`. Both charts have **Download** (PNG for reports) and **Table** buttons.
 
 ## Summary workbook format
 

@@ -367,16 +367,33 @@ class CPL_Data {
 			if ( empty( $rows ) ) {
 				continue;
 			}
+			// Each row: [name, offers, group]. "group" is the company after name matching,
+			// so the trend chart can follow one company across years whatever the spelling.
+			$seen = array();
+			foreach ( $rows as &$r ) {
+				$r[2] = 'others' === self::key( $r[0] ) ? self::OTHERS : self::resolve( $r[0], $aliases, $seen );
+			}
+			unset( $r );
+			$recruiters = null;
+			if ( self::SOURCE_REC === $y['chart_source'] ) {
+				$recruiters = count( array_filter( array_keys( self::company_counts( self::get_records( $y['year'] ), $aliases ) ), function ( $c ) {
+					return 'others' !== self::key( $c );
+				} ) );
+			}
 			$years[] = array(
-				'year'     => $y['year'],
-				'appeared' => $y['students_appeared'],
-				'highest'  => $y['highest_pkg'],
-				'avg'      => $y['avg_pkg'],
-				'footnote' => $y['footnote'],
-				'rows'     => $rows,
+				'year'       => $y['year'],
+				'appeared'   => $y['students_appeared'],
+				'highest'    => $y['highest_pkg'],
+				'avg'        => $y['avg_pkg'],
+				'footnote'   => $y['footnote'],
+				'recruiters' => $recruiters,
+				'rows'       => $rows,
 			);
 		}
-		$payload = array( 'years' => $years );
+		$payload = array(
+			'years'    => $years,
+			'college'  => CPL_Settings::get( 'college_name' ),
+		);
 		set_transient( self::CACHE_KEY, $payload, WEEK_IN_SECONDS );
 		return $payload;
 	}

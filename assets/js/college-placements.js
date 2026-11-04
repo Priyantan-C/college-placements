@@ -1,156 +1,580 @@
-/* College Placements – front-end charts. Mirrors the settings of the previous Netlify app. */
+/* College Placements – front-end charts. */
 (function () {
 	'use strict';
 
-	var COLORS = [
-		'rgba(0, 123, 255, 0.6)', 'rgba(23, 162, 184, 0.6)', 'rgba(40, 167, 69, 0.6)', 'rgba(255, 80, 0, 0.6)',
-		'rgba(156, 204, 101, 0.6)', 'rgba(255, 161, 0, 0.6)', 'rgba(31, 58, 147, 0.6)', 'rgba(102, 51, 153, 0.6)',
-		'rgba(64, 87, 135, 0.6)', 'rgba(220, 53, 69, 0.6)', 'rgba(25, 135, 84, 0.6)', 'rgba(249, 168, 37, 0.6)',
-		'rgba(15, 107, 135, 0.6)', 'rgba(138, 141, 144, 0.6)'
-	];
+	/* ---------- Palette ----------
+	 * CATEGORICAL: fixed slot order, checked for colour-blind separation (adjacent ΔE ≥ 9) and normal-vision
+	 * separation (ΔE ≥ 19). Aqua, yellow and pink are under 3:1 on white, so every chart has labels + a table view.
+	 * GRADIENT: brand navy → blue → violet → pink → orange. Single-series bar charts spread their bars evenly along it
+	 * (in the order shown), each bar with a soft tint-to-colour gradient. The colour is decoration that makes the charts
+	 * lively in reports; every bar is still named on the axis and labelled with its value, so nothing depends on it. */
+	var CATEGORICAL = ['#1e73be', '#ff5722', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
+	var GRADIENT = ['#004287', '#1e73be', '#6250d6', '#d9468f', '#ff5722'];
+	var OTHER = '#aab1bb';
+	var INK = { primary: '#1d2327', secondary: '#565d66', muted: '#80868e', grid: '#e7e9ec', axis: '#c9cdd2', surface: '#ffffff' };
+	var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-	// Font Awesome Free icons (CC BY 4.0): laptop-code and user-graduate.
-	var ICON_LAPTOP = '<svg viewBox="0 0 640 512" aria-hidden="true"><path fill="currentColor" d="M64 96c0-35.3 28.7-64 64-64H512c35.3 0 64 28.7 64 64V352H512V96H128V352H64V96zM0 403.2C0 392.6 8.6 384 19.2 384H620.8c10.6 0 19.2 8.6 19.2 19.2c0 42.4-34.4 76.8-76.8 76.8H76.8C34.4 480 0 445.6 0 403.2zM281 209l-31 31 31 31c9.4 9.4 9.4 24.6 0 33.9s-24.6 9.4-33.9 0l-48-48c-9.4-9.4-9.4-24.6 0-33.9l48-48c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9zM393 175l48 48c9.4 9.4 9.4 24.6 0 33.9l-48 48c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l31-31-31-31c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0z"/></svg>';
-	var ICON_GRAD = '<svg viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M219.3 .5c3.1-.6 6.3-.6 9.4 0l200 40C439.9 42.7 448 52.6 448 64s-8.1 21.3-19.3 23.5L352 102.9V160c0 70.7-57.3 128-128 128s-128-57.3-128-128V102.9L48 93.3v65.1l15.7 78.4c.9 4.7-.3 9.6-3.3 13.3s-7.6 5.9-12.4 5.9H16c-4.8 0-9.3-2.1-12.4-5.9s-4.3-8.6-3.3-13.3L16 158.4V86.6C6.5 83.3 0 74.3 0 64C0 52.6 8.1 42.7 19.3 40.5l200-40zM111.9 327.7c10.5-3.4 21.8 .4 29.4 8.5l71 75.5c6.3 6.7 17 6.7 23.3 0l71-75.5c7.6-8.1 18.9-11.9 29.4-8.5C401 348.6 448 409.4 448 481.3c0 17-13.8 30.7-30.7 30.7H30.7C13.8 512 0 498.2 0 481.3c0-71.9 47-132.7 111.9-153.6z"/></svg>';
-
+	function key(s) {
+		return String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+	}
+	function isOthers(name) {
+		return key(name) === 'others';
+	}
+	function sum(rows) {
+		return rows.reduce(function (t, r) { return t + r[1]; }, 0);
+	}
 	function el(tag, attrs, children) {
 		var node = document.createElement(tag);
 		Object.keys(attrs || {}).forEach(function (k) {
 			if (k === 'text') { node.textContent = attrs[k]; } else if (k === 'html') { node.innerHTML = attrs[k]; } else { node.setAttribute(k, attrs[k]); }
 		});
-		(children || []).forEach(function (c) { if (c) { node.appendChild(c); } });
+		(children || []).forEach(function (c) { if (c) { node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); } });
 		return node;
 	}
-
-	function sum(rows) {
-		return rows.reduce(function (t, r) { return t + r[1]; }, 0);
+	function fonts(root) {
+		var body = getComputedStyle(root).fontFamily || 'system-ui, sans-serif';
+		var probe = document.querySelector('h1, h2, .entry-title') || root;
+		var head = getComputedStyle(probe).fontFamily || body;
+		return { body: body, heading: head };
+	}
+	function truncate(s, n) {
+		s = String(s);
+		return s.length > n ? s.slice(0, n - 1) + '…' : s;
+	}
+	function slug(s) {
+		return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 	}
 
-	/* ---------- [placement_trend] ---------- */
-	function renderTrend(root, data) {
-		var years = data.years;
-		var labels = years.map(function (y) { return y.year; });
-		var companies = [];
-		years.forEach(function (y) {
-			y.rows.forEach(function (r) { if (companies.indexOf(r[0]) === -1) { companies.push(r[0]); } });
-		});
+	/* Colour at position t (0–1) along the brand spectrum. */
+	function hexToRgb(h) {
+		var n = parseInt(h.slice(1), 16);
+		return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+	}
+	function rgb(c) {
+		return 'rgb(' + c.map(function (v) { return Math.round(v); }).join(',') + ')';
+	}
+	function spectrum(t) {
+		t = Math.max(0, Math.min(1, t));
+		var seg = t * (GRADIENT.length - 1);
+		var i = Math.min(Math.floor(seg), GRADIENT.length - 2);
+		var a = hexToRgb(GRADIENT[i]);
+		var b = hexToRgb(GRADIENT[i + 1]);
+		var f = seg - i;
+		return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+	}
+	function lighten(c, amt) {
+		return c.map(function (v) { return v + (255 - v) * amt; });
+	}
+	/* Colours for n bars spread evenly across the spectrum. */
+	function spread(n) {
+		var out = [];
+		for (var i = 0; i < n; i++) { out.push(spectrum(n === 1 ? 0.3 : i / (n - 1))); }
+		return out;
+	}
+	/* A soft gradient along one bar: a lighter tint at its base, the full colour at its end. */
+	function barGradient(ctx, color) {
+		// Use the bar's final size (from the value scale), not its animated size, which starts at zero.
+		var chart = ctx.chart;
+		var horizontal = chart.options.indexAxis === 'y';
+		var scale = chart.scales[horizontal ? 'x' : 'y'];
+		var value = ctx.raw;
+		if (!scale || !chart.chartArea || !value) { return rgb(color); }
+		var p0 = scale.getPixelForValue(0);
+		var p1 = scale.getPixelForValue(value);
+		if (!isFinite(p0) || !isFinite(p1) || p0 === p1) { return rgb(color); }
+		var g = horizontal
+			? chart.ctx.createLinearGradient(p0, 0, p1, 0)
+			: chart.ctx.createLinearGradient(0, p0, 0, p1);
+		g.addColorStop(0, rgb(lighten(color, 0.35)));
+		g.addColorStop(1, rgb(color));
+		return g;
+	}
 
-		var datasets = companies.map(function (name, i) {
-			return {
-				label: name,
-				data: years.map(function (y) {
-					var row = y.rows.filter(function (r) { return r[0] === name; })[0];
-					return row ? row[1] : 0;
-				}),
-				backgroundColor: COLORS[i % COLORS.length],
-				type: 'bar'
-			};
-		});
-		var totals = years.map(function (y) { return sum(y.rows); });
-		var appeared = years.map(function (y) { return y.appeared; });
-		var max = Math.max.apply(Math, appeared.concat([1]));
+	/* White plot background so screenshots and downloads are never transparent. */
+	var surfacePlugin = {
+		id: 'cplSurface',
+		beforeDraw: function (chart) {
+			var ctx = chart.ctx;
+			ctx.save();
+			ctx.globalCompositeOperation = 'destination-over';
+			ctx.fillStyle = INK.surface;
+			ctx.fillRect(0, 0, chart.width, chart.height);
+			ctx.restore();
+		}
+	};
 
-		datasets.push(
-			{ label: 'Total Placements', data: totals, fill: false, borderColor: 'rgba(255, 99, 132, 0.6)', backgroundColor: 'rgba(255, 99, 132, 0.6)', tension: 0.4, yAxisID: 'y', type: 'line' },
-			{ label: 'Total Students Appeared', data: appeared, fill: false, borderColor: 'rgba(54, 162, 235, 0.6)', backgroundColor: 'rgba(54, 162, 235, 0.6)', tension: 0.4, yAxisID: 'y1', type: 'line' }
-		);
+	/* Value labels at the end of bars. opts.only(index) limits which bars get one. */
+	var valueLabelPlugin = {
+		id: 'cplValues',
+		afterDatasetsDraw: function (chart, args, opts) {
+			if (!opts || !opts.enabled) { return; }
+			var ctx = chart.ctx;
+			var horizontal = chart.options.indexAxis === 'y';
+			chart.data.datasets.forEach(function (ds, di) {
+				if (ds.type === 'line' || ds.cplNoLabels) { return; }
+				var meta = chart.getDatasetMeta(di);
+				if (meta.hidden) { return; }
+				meta.data.forEach(function (bar, i) {
+					if (opts.only && !opts.only(i)) { return; }
+					var v = ds.data[i];
+					if (!v) { return; }
+					ctx.save();
+					ctx.font = '600 13px ' + opts.font;
+					ctx.fillStyle = INK.primary;
+					if (horizontal) {
+						ctx.textAlign = 'left';
+						ctx.textBaseline = 'middle';
+						ctx.fillText(String(v), bar.x + 8, bar.y);
+					} else {
+						ctx.textAlign = 'center';
+						ctx.textBaseline = 'bottom';
+						ctx.fillText(String(v), bar.x, bar.y - 6);
+					}
+					ctx.restore();
+				});
+			});
+		}
+	};
 
-		new window.Chart(root.querySelector('canvas'), {
-			type: 'bar',
-			data: { labels: labels, datasets: datasets },
-			options: {
-				responsive: true,
-				maintainAspectRatio: false,
-				plugins: { legend: { position: 'top' }, title: { display: true, text: root.getAttribute('data-title') } },
-				scales: {
-					x: { stacked: true },
-					y: { beginAtZero: true, stacked: true, display: true, max: Math.ceil(1.5 * max), ticks: { stepSize: Math.ceil(max / 10), precision: 0 } },
-					y1: { beginAtZero: true, stacked: false, display: false, max: Math.ceil(1.5 * max), ticks: { stepSize: Math.ceil(max / 10), precision: 0 } }
-				}
+	function baseOptions(f, title, subtitle) {
+		return {
+			responsive: true,
+			maintainAspectRatio: false,
+			animation: REDUCED ? false : { duration: 700, easing: 'easeOutQuart' },
+			layout: { padding: { top: 4, right: 12, bottom: 4, left: 4 } },
+			plugins: {
+				title: { display: true, text: title, align: 'start', color: INK.primary, font: { family: f.heading, size: 18, weight: '600' }, padding: { top: 6, bottom: 2 } },
+				subtitle: { display: !!subtitle, text: subtitle, align: 'start', color: INK.secondary, font: { family: f.body, size: 13 }, padding: { bottom: 14 } },
+				legend: { display: false },
+				tooltip: {
+					backgroundColor: '#1d2327', titleColor: '#fff', bodyColor: '#fff', padding: 10, cornerRadius: 6, boxPadding: 4,
+					titleFont: { family: f.body, weight: '600', size: 13 }, bodyFont: { family: f.body, size: 13 }
+				},
+				cplValues: { enabled: false, font: f.body }
 			}
+		};
+	}
+
+	function axisStyle(f) {
+		return {
+			grid: { color: INK.grid, drawTicks: false },
+			border: { color: INK.axis },
+			ticks: { color: INK.muted, font: { family: f.body, size: 12 }, padding: 8 }
+		};
+	}
+
+	/* ---------- Shared bits: download, table view, lazy render ---------- */
+
+	function downloadChart(chart, filename) {
+		var prev = chart.options.devicePixelRatio;
+		chart.options.devicePixelRatio = Math.max(2, window.devicePixelRatio || 1);
+		chart.resize();
+		chart.update('none');
+		var url = chart.toBase64Image('image/png', 1);
+		chart.options.devicePixelRatio = prev;
+		chart.resize();
+		chart.update('none');
+		var a = el('a', { href: url, download: filename + '.png' });
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+	}
+
+	function actionButton(label, icon) {
+		var b = el('button', { type: 'button', 'class': 'cpl-action' });
+		b.innerHTML = icon + '<span>' + label + '</span>';
+		return b;
+	}
+	var ICON_DOWNLOAD = '<svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M9.25 3h1.5v8.19l2.97-2.97 1.06 1.06L10 14.06 5.22 9.28l1.06-1.06 2.97 2.97V3ZM4 15.5h12V17H4z"/></svg>';
+	var ICON_TABLE = '<svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M3 4h14v12H3V4Zm1.5 1.5v2.25h11V5.5h-11Zm0 3.75v2.25h4.75V9.25H4.5Zm6.25 0v2.25h4.75V9.25h-4.75ZM4.5 13v1.5h4.75V13H4.5Zm6.25 0v1.5h4.75V13h-4.75Z"/></svg>';
+	var ICON_UP = '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 3.5 13 9h-3.25v3.5h-3.5V9H3z"/></svg>';
+	var ICON_DOWN = '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 12.5 3 7h3.25V3.5h3.5V7H13z"/></svg>';
+
+	function tableToggle(button, wrap) {
+		button.setAttribute('aria-expanded', 'false');
+		button.addEventListener('click', function () {
+			var open = wrap.hidden;
+			wrap.hidden = !open;
+			button.setAttribute('aria-expanded', open ? 'true' : 'false');
+			button.querySelector('span').textContent = open ? 'Hide table' : 'Table';
 		});
+	}
+
+	function whenVisible(node, fn) {
+		if (!('IntersectionObserver' in window)) { fn(); return; }
+		var io = new IntersectionObserver(function (entries) {
+			if (entries.some(function (e) { return e.isIntersecting; })) { io.disconnect(); fn(); }
+		}, { rootMargin: '120px' });
+		io.observe(node);
 	}
 
 	/* ---------- [placement_year] ---------- */
+
 	function renderYear(root, data) {
 		var years = data.years.slice().sort(function (a, b) { return b.year - a.year; });
 		if (!years.length) { return; }
+		var byYear = {};
+		data.years.forEach(function (y) { byYear[y.year] = y; });
 		var wanted = parseInt(root.getAttribute('data-year'), 10);
-		var current = years.filter(function (y) { return y.year === wanted; })[0] || years[0];
-		var uid = 'cpl-year-' + Math.random().toString(36).slice(2, 8);
+		var current = byYear[wanted] || years[0];
+		var f = fonts(root);
+		var titleBase = root.getAttribute('data-title') || 'Placement Data Year wise';
 
-		var select = el('select', { id: uid, 'class': 'cpl-select' });
-		years.forEach(function (y) {
-			var opt = el('option', { value: y.year, text: String(y.year) });
-			if (y.year === current.year) { opt.selected = true; }
-			select.appendChild(opt);
+		/* Toolbar: year pills (recent six) + "Earlier" select, then actions. */
+		var pills = el('div', { 'class': 'cpl-pills', role: 'group', 'aria-label': 'Choose a year' });
+		var recent = years.slice(0, 6);
+		var older = years.slice(6);
+		var pillButtons = recent.map(function (y) {
+			var b = el('button', { type: 'button', 'class': 'cpl-pill', 'data-year': y.year, text: String(y.year) });
+			pills.appendChild(b);
+			return b;
 		});
+		var earlier = null;
+		if (older.length) {
+			earlier = el('select', { 'class': 'cpl-pill cpl-pill-select', 'aria-label': 'Earlier years' });
+			earlier.appendChild(el('option', { value: '', text: 'Earlier' }));
+			older.forEach(function (y) { earlier.appendChild(el('option', { value: y.year, text: String(y.year) })); });
+			pills.appendChild(earlier);
+		}
+		var tableBtn = actionButton('Table', ICON_TABLE);
+		var dlBtn = actionButton('Download', ICON_DOWNLOAD);
+		dlBtn.setAttribute('aria-label', 'Download chart as image');
+		var toolbar = el('div', { 'class': 'cpl-toolbar' }, [pills, el('div', { 'class': 'cpl-actions' }, [tableBtn, dlBtn])]);
 
-		var canvas = el('canvas', { role: 'img', 'aria-label': root.getAttribute('data-title') });
-		var appearedEl = el('h5', { 'class': 'cpl-card-title' });
-		var offersEl = el('h5', { 'class': 'cpl-card-title' });
-		var tbody = el('tbody');
-		var tfoot = el('tbody');
+		var tiles = el('div', { 'class': 'cpl-tiles' });
+		var canvasWrap = el('div', { 'class': 'cpl-canvas' });
+		var canvas = el('canvas', { role: 'img' });
+		canvasWrap.appendChild(canvas);
+		var tableWrap = el('div', { 'class': 'cpl-data-table', hidden: '' });
+		var foot = el('p', { 'class': 'cpl-footnote', hidden: '' });
+		var card = el('div', { 'class': 'cpl-card' }, [canvasWrap, tableWrap, foot]);
 
-		root.appendChild(el('div', { 'class': 'cpl-picker' }, [
-			el('label', { 'for': uid, text: 'Select Year:' }), select
-		]));
-		root.appendChild(el('div', { 'class': 'cpl-pie' }, [canvas]));
-		root.appendChild(el('div', { 'class': 'cpl-cards' }, [
-			el('div', { 'class': 'cpl-card' }, [el('span', { 'class': 'cpl-icon', html: ICON_LAPTOP }), appearedEl]),
-			el('div', { 'class': 'cpl-card' }, [el('span', { 'class': 'cpl-icon', html: ICON_GRAD }), offersEl])
-		]));
-		var table = el('table', { 'class': 'cpl-company-table' }, [
-			el('thead', {}, [el('tr', {}, ['Serial No.', 'Company Name', 'Number of Placements', 'Highest Package', 'Average Package'].map(function (h) {
-				return el('th', { text: h });
-			}))]),
-			tbody, tfoot
-		]);
-		root.appendChild(el('div', { 'class': 'cpl-table-wrap' }, [table]));
+		root.appendChild(toolbar);
+		root.appendChild(tiles);
+		root.appendChild(card);
+		tableToggle(tableBtn, tableWrap);
 
-		var chart = new window.Chart(canvas, {
-			type: 'pie',
-			data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
-			options: {
-				responsive: true,
-				maintainAspectRatio: false,
-				plugins: {
-					title: { display: true, text: root.getAttribute('data-title'), font: { weight: 'bold' } },
-					tooltip: { callbacks: { label: function (ctx) { return ctx.label + ': ' + ctx.parsed; } } }
-				}
-			}
-		});
+		var chart = null;
 
-		function show(y) {
-			var rows = y.rows.filter(function (r) { return r[1] !== 0; });
-			chart.data.labels = rows.map(function (r) { return r[0]; });
-			chart.data.datasets[0].data = rows.map(function (r) { return r[1]; });
-			chart.data.datasets[0].backgroundColor = rows.map(function (r, i) { return COLORS[i % COLORS.length]; });
-			chart.update();
-
-			appearedEl.textContent = 'Total Students Participated/Eligible: ' + y.appeared;
-			offersEl.textContent = 'Total Offers: ' + sum(rows);
-
-			tbody.innerHTML = '';
-			rows.forEach(function (r, i) {
-				var tr = el('tr', {}, [el('td', { text: String(i + 1) }), el('td', { text: r[0] }), el('td', { text: String(r[1]) })]);
-				if (i === 0) {
-					tr.appendChild(el('td', { 'class': 'cpl-pkg', rowspan: String(rows.length), text: y.highest || '' }));
-					tr.appendChild(el('td', { 'class': 'cpl-pkg', rowspan: String(rows.length), text: y.avg || '' }));
-				}
-				tbody.appendChild(tr);
-			});
-			tfoot.innerHTML = '';
-			if (y.footnote) {
-				tfoot.appendChild(el('tr', {}, [el('td', { colspan: '5', 'class': 'cpl-footnote', text: y.footnote })]));
-			}
+		function tile(label, value, extra) {
+			return el('div', { 'class': 'cpl-tile' }, [
+				el('span', { 'class': 'cpl-tile-label', text: label }),
+				el('span', { 'class': 'cpl-tile-value', text: value === '' || value == null ? '–' : String(value) }),
+				extra || null
+			]);
 		}
 
-		select.addEventListener('change', function () {
-			var y = years.filter(function (x) { return x.year === parseInt(select.value, 10); })[0];
-			if (y) { show(y); }
+		function show(y) {
+			current = y;
+			var rows = y.rows.filter(function (r) { return r[1] > 0; });
+			var total = sum(rows);
+			var prev = byYear[y.year - 1];
+
+			pillButtons.forEach(function (b) {
+				var on = parseInt(b.getAttribute('data-year'), 10) === y.year;
+				b.classList.toggle('is-active', on);
+				b.setAttribute('aria-pressed', on ? 'true' : 'false');
+			});
+			if (earlier) {
+				var isOld = older.some(function (o) { return o.year === y.year; });
+				earlier.value = isOld ? String(y.year) : '';
+				earlier.classList.toggle('is-active', isOld);
+			}
+
+			/* Tiles */
+			tiles.innerHTML = '';
+			var delta = null;
+			if (prev) {
+				var d = total - sum(prev.rows);
+				if (d !== 0) {
+					delta = el('span', { 'class': 'cpl-delta ' + (d > 0 ? 'is-up' : 'is-down') });
+					delta.innerHTML = (d > 0 ? ICON_UP : ICON_DOWN) + '<span>' + Math.abs(d) + ' vs ' + prev.year + '</span>';
+				}
+			}
+			tiles.appendChild(tile('Total offers', total, delta));
+			tiles.appendChild(tile('Students eligible', y.appeared || ''));
+			tiles.appendChild(tile('Highest package', y.highest && y.highest !== 'N/A' ? y.highest : ''));
+			tiles.appendChild(tile('Average package', y.avg && y.avg !== 'N/A' ? y.avg : ''));
+			if (y.recruiters) { tiles.appendChild(tile('Recruiters', y.recruiters)); }
+
+			/* Chart */
+			var subtitle = [data.college, total + ' offers' + (y.appeared ? ' · ' + y.appeared + ' students eligible' : '')].filter(Boolean).join(' · ');
+			var title = titleBase + ' – ' + y.year;
+			canvas.setAttribute('aria-label', title + '. ' + rows.map(function (r) { return r[0] + ' ' + r[1]; }).join(', '));
+			canvasWrap.style.height = Math.max(300, rows.length * 34 + 110) + 'px';
+			var companyRows = rows.filter(function (r) { return !isOthers(r[0]); }).length;
+			var colours = spread(companyRows);
+			var colourAt = function (i) {
+				var r = rows[i];
+				if (!r || isOthers(r[0])) { return null; }
+				var n = 0;
+				for (var j = 0; j < i; j++) { if (!isOthers(rows[j][0])) { n++; } }
+				return colours[n];
+			};
+
+			var cfg = {
+				type: 'bar',
+				data: {
+					labels: rows.map(function (r) { return r[0]; }),
+					datasets: [{
+						label: 'Offers',
+						data: rows.map(function (r) { return r[1]; }),
+						backgroundColor: function (ctx) {
+							var c = colourAt(ctx.dataIndex);
+							return c ? barGradient(ctx, c) : OTHER;
+						},
+						hoverBackgroundColor: function (ctx) {
+							var c = colourAt(ctx.dataIndex);
+							return c ? rgb(c) : '#949ba6';
+						},
+						borderRadius: { topRight: 4, bottomRight: 4 },
+						borderSkipped: 'start',
+						barPercentage: 0.78,
+						categoryPercentage: 0.9,
+						maxBarThickness: 24
+					}]
+				},
+				options: (function () {
+					var o = baseOptions(f, title, subtitle);
+					o.indexAxis = 'y';
+					o.plugins.cplValues.enabled = true;
+					o.plugins.tooltip.callbacks = {
+						title: function (items) { return rows[items[0].dataIndex][0]; },
+						label: function (item) {
+							var v = item.raw;
+							return ' ' + v + (v === 1 ? ' offer' : ' offers') + ' (' + Math.round(v / total * 100) + '%)';
+						}
+					};
+					var x = axisStyle(f);
+					x.beginAtZero = true;
+					x.grace = '10%';
+					x.ticks.precision = 0;
+					var yAxis = axisStyle(f);
+					yAxis.grid = { display: false };
+					yAxis.ticks.color = INK.primary;
+					yAxis.ticks.font = { family: f.body, size: 13 };
+					yAxis.ticks.callback = function (v) { return truncate(this.getLabelForValue(v), window.innerWidth < 600 ? 18 : 30); };
+					o.scales = { x: x, y: yAxis };
+					return o;
+				}()),
+				plugins: [surfacePlugin, valueLabelPlugin]
+			};
+			if (chart) { chart.destroy(); }
+			chart = new window.Chart(canvas, cfg);
+
+			/* Table view */
+			tableWrap.innerHTML = '';
+			var tb = el('tbody');
+			rows.forEach(function (r, i) {
+				tb.appendChild(el('tr', {}, [
+					el('td', { 'class': 'cpl-num', text: String(i + 1) }),
+					el('td', { text: r[0] }),
+					el('td', { 'class': 'cpl-num', text: String(r[1]) }),
+					el('td', { 'class': 'cpl-num', text: Math.round(r[1] / total * 100) + '%' })
+				]));
+			});
+			tb.appendChild(el('tr', { 'class': 'cpl-total-row' }, [el('td'), el('td', { text: 'Total' }), el('td', { 'class': 'cpl-num', text: String(total) }), el('td', { 'class': 'cpl-num', text: '100%' })]));
+			tableWrap.appendChild(el('table', {}, [
+				el('caption', { 'class': 'screen-reader-text', text: title }),
+				el('thead', {}, [el('tr', {}, ['#', 'Company', 'Offers', 'Share'].map(function (h, i) { return el('th', { scope: 'col', 'class': i === 1 ? '' : 'cpl-num', text: h }); }))]),
+				tb
+			]));
+
+			foot.hidden = !y.footnote;
+			foot.textContent = y.footnote || '';
+		}
+
+		pillButtons.forEach(function (b) {
+			b.addEventListener('click', function () { show(byYear[parseInt(b.getAttribute('data-year'), 10)]); });
 		});
-		show(current);
+		if (earlier) {
+			earlier.addEventListener('change', function () {
+				if (earlier.value) { show(byYear[parseInt(earlier.value, 10)]); }
+			});
+		}
+		dlBtn.addEventListener('click', function () {
+			if (chart) { downloadChart(chart, 'placements-' + current.year); }
+		});
+
+		whenVisible(root, function () { show(current); });
+	}
+
+	/* ---------- [placement_trend] ---------- */
+
+	function renderTrend(root, data) {
+		var years = data.years;
+		if (!years.length) { return; }
+		var f = fonts(root);
+		var title = root.getAttribute('data-title') || 'Placements over the years';
+		var view = root.getAttribute('data-view') === 'companies' ? 'companies' : 'totals';
+		var labels = years.map(function (y) { return String(y.year); });
+		var totals = years.map(function (y) { return sum(y.rows); });
+		var appeared = years.map(function (y) { return y.appeared || null; });
+		var span = years[0].year + '–' + years[years.length - 1].year;
+		var yearColours = spread(years.length);
+
+		/* Top 8 companies across all years keep a fixed colour; the rest share grey. */
+		var groups = {};
+		years.forEach(function (y, yi) {
+			y.rows.forEach(function (r) {
+				var name = r[2] || r[0];
+				var k = isOthers(name) ? '__other' : key(name);
+				if (!groups[k]) { groups[k] = { name: name, total: 0, data: years.map(function () { return 0; }) }; }
+				groups[k].total += r[1];
+				groups[k].data[yi] += r[1];
+				if (k !== '__other') { groups[k].name = name; }
+			});
+		});
+		var ranked = Object.keys(groups).filter(function (k) { return k !== '__other'; })
+			.sort(function (a, b) { return groups[b].total - groups[a].total; });
+		var top = ranked.slice(0, CATEGORICAL.length);
+		var otherData = years.map(function (y, yi) {
+			var t = groups.__other ? groups.__other.data[yi] : 0;
+			ranked.slice(CATEGORICAL.length).forEach(function (k) { t += groups[k].data[yi]; });
+			return t;
+		});
+
+		var seg = el('div', { 'class': 'cpl-segmented', role: 'group', 'aria-label': 'Chart view' });
+		var btnTotals = el('button', { type: 'button', 'class': 'cpl-seg', text: 'Total offers' });
+		var btnCompanies = el('button', { type: 'button', 'class': 'cpl-seg', text: 'By company' });
+		seg.appendChild(btnTotals);
+		seg.appendChild(btnCompanies);
+		var tableBtn = actionButton('Table', ICON_TABLE);
+		var dlBtn = actionButton('Download', ICON_DOWNLOAD);
+		dlBtn.setAttribute('aria-label', 'Download chart as image');
+		var toolbar = el('div', { 'class': 'cpl-toolbar' }, [seg, el('div', { 'class': 'cpl-actions' }, [tableBtn, dlBtn])]);
+		var canvasWrap = el('div', { 'class': 'cpl-canvas cpl-canvas-trend' });
+		var canvas = el('canvas', { role: 'img' });
+		canvasWrap.appendChild(canvas);
+		var tableWrap = el('div', { 'class': 'cpl-data-table', hidden: '' });
+		root.appendChild(toolbar);
+		root.appendChild(el('div', { 'class': 'cpl-card' }, [canvasWrap, tableWrap]));
+		tableToggle(tableBtn, tableWrap);
+
+		var chart = null;
+		var maxIndex = totals.indexOf(Math.max.apply(Math, totals));
+
+		function legendOptions() {
+			return {
+				display: true, position: 'top', align: 'start',
+				labels: { color: INK.secondary, font: { family: f.body, size: 12 }, boxWidth: 12, boxHeight: 12, useBorderRadius: true, borderRadius: 3, padding: 14 }
+			};
+		}
+
+		function draw() {
+			btnTotals.classList.toggle('is-active', view === 'totals');
+			btnCompanies.classList.toggle('is-active', view === 'companies');
+			btnTotals.setAttribute('aria-pressed', view === 'totals' ? 'true' : 'false');
+			btnCompanies.setAttribute('aria-pressed', view === 'companies' ? 'true' : 'false');
+
+			var o = baseOptions(f, title, view === 'totals'
+				? span + ' · total offers and students appeared each year'
+				: span + ' · offers by company (top ' + top.length + ' recruiters, rest grouped)');
+			var x = axisStyle(f);
+			x.grid = { display: false };
+			x.stacked = view === 'companies';
+			var yAxis = axisStyle(f);
+			yAxis.beginAtZero = true;
+			yAxis.grace = '8%';
+			yAxis.ticks.precision = 0;
+			yAxis.stacked = view === 'companies';
+			yAxis.border = { display: false };
+			o.scales = { x: x, y: yAxis };
+			o.interaction = { mode: 'index', intersect: false };
+			o.plugins.legend = legendOptions();
+
+			var datasets;
+			if (view === 'totals') {
+				o.plugins.cplValues.enabled = true;
+				o.plugins.cplValues.only = function (i) { return i === maxIndex || i === totals.length - 1; };
+				o.plugins.legend.labels.generateLabels = function (c) {
+					return c.data.datasets.map(function (ds, i) {
+						return {
+							text: ds.label, datasetIndex: i, hidden: !c.isDatasetVisible(i), lineWidth: 0,
+							fillStyle: ds.type === 'line' ? '#2b2f36' : '#6250d6', strokeStyle: 'transparent',
+							fontColor: INK.secondary, borderRadius: 3
+						};
+					});
+				};
+				datasets = [
+					{
+						type: 'line', label: 'Students appeared', data: appeared, order: 0,
+						borderColor: '#2b2f36', backgroundColor: '#2b2f36', borderWidth: 2, tension: 0.3,
+						pointRadius: 4, pointHoverRadius: 6, pointBorderColor: '#fff', pointBorderWidth: 2, spanGaps: true
+					},
+					{
+						type: 'bar', label: 'Total offers', data: totals, order: 1,
+						backgroundColor: function (ctx) { return barGradient(ctx, yearColours[ctx.dataIndex]); },
+						hoverBackgroundColor: function (ctx) { return rgb(yearColours[ctx.dataIndex]); },
+						borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start',
+						barPercentage: 0.72, categoryPercentage: 0.9, maxBarThickness: 40
+					}
+				];
+			} else {
+				datasets = top.map(function (k, i) {
+					return {
+						type: 'bar', label: groups[k].name, data: groups[k].data, backgroundColor: CATEGORICAL[i],
+						borderColor: INK.surface, borderWidth: { top: 1, bottom: 1, left: 0, right: 0 }, borderSkipped: false,
+						barPercentage: 0.72, categoryPercentage: 0.9, maxBarThickness: 40
+					};
+				});
+				if (otherData.some(function (v) { return v > 0; })) {
+					datasets.push({
+						type: 'bar', label: 'Other companies', data: otherData, backgroundColor: OTHER,
+						borderColor: INK.surface, borderWidth: { top: 1, bottom: 1, left: 0, right: 0 }, borderSkipped: false,
+						barPercentage: 0.72, categoryPercentage: 0.9, maxBarThickness: 40
+					});
+				}
+				o.plugins.tooltip.filter = function (item) { return item.raw > 0; };
+				o.plugins.tooltip.itemSort = function (a, b) { return b.raw - a.raw; };
+				o.plugins.tooltip.callbacks = {
+					footer: function (items) {
+						return 'Total: ' + totals[items[0].dataIndex];
+					}
+				};
+			}
+
+			canvas.setAttribute('aria-label', title + ', ' + span + '. ' + years.map(function (y, i) { return y.year + ': ' + totals[i] + ' offers'; }).join(', '));
+			if (chart) { chart.destroy(); }
+			chart = new window.Chart(canvas, {
+				type: 'bar',
+				data: { labels: labels, datasets: datasets },
+				options: o,
+				plugins: [surfacePlugin, valueLabelPlugin]
+			});
+			buildTable();
+		}
+
+		function buildTable() {
+			tableWrap.innerHTML = '';
+			var head, body = el('tbody');
+			if (view === 'totals') {
+				head = ['Year', 'Total offers', 'Students appeared'];
+				years.forEach(function (y, i) {
+					body.appendChild(el('tr', {}, [el('td', { text: String(y.year) }), el('td', { 'class': 'cpl-num', text: String(totals[i]) }), el('td', { 'class': 'cpl-num', text: y.appeared ? String(y.appeared) : '–' })]));
+				});
+			} else {
+				head = ['Year'].concat(top.map(function (k) { return groups[k].name; }), ['Other companies', 'Total']);
+				years.forEach(function (y, i) {
+					var cells = [el('td', { text: String(y.year) })];
+					top.forEach(function (k) { cells.push(el('td', { 'class': 'cpl-num', text: String(groups[k].data[i] || '–') })); });
+					cells.push(el('td', { 'class': 'cpl-num', text: String(otherData[i] || '–') }));
+					cells.push(el('td', { 'class': 'cpl-num', text: String(totals[i]) }));
+					body.appendChild(el('tr', {}, cells));
+				});
+			}
+			tableWrap.appendChild(el('table', {}, [
+				el('caption', { 'class': 'screen-reader-text', text: title }),
+				el('thead', {}, [el('tr', {}, head.map(function (h, i) { return el('th', { scope: 'col', 'class': i ? 'cpl-num' : '', text: h }); }))]),
+				body
+			]));
+		}
+
+		btnTotals.addEventListener('click', function () { if (view !== 'totals') { view = 'totals'; draw(); } });
+		btnCompanies.addEventListener('click', function () { if (view !== 'companies') { view = 'companies'; draw(); } });
+		dlBtn.addEventListener('click', function () { if (chart) { downloadChart(chart, slug(title) + (view === 'companies' ? '-by-company' : '')); } });
+
+		whenVisible(root, draw);
 	}
 
 	function boot() {

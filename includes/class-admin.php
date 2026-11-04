@@ -774,7 +774,14 @@ class CPL_Admin {
 	public static function page_names() {
 		global $wpdb;
 		$aliases = CPL_Data::get_aliases();
-		$rows    = $wpdb->get_results( 'SELECT org, year, COUNT(*) AS n FROM ' . CPL_DB::table( 'records' ) . ' GROUP BY org, year ORDER BY org', ARRAY_A );
+		// Spellings from student lists (one row per offer) and from summary numbers (offers per company).
+		$rows = array_merge(
+			(array) $wpdb->get_results( 'SELECT org, year, COUNT(*) AS n FROM ' . CPL_DB::table( 'records' ) . ' GROUP BY org, year', ARRAY_A ),
+			(array) $wpdb->get_results( 'SELECT company AS org, year, offers AS n FROM ' . CPL_DB::table( 'summary' ), ARRAY_A )
+		);
+		$rows = array_filter( $rows, function ( $r ) {
+			return 'others' !== CPL_Data::key( $r['org'] );
+		} );
 
 		// Group spellings (case/space/punctuation-insensitive) with the years they appear in.
 		$spellings = array();
@@ -807,10 +814,10 @@ class CPL_Admin {
 		<div class="wrap cpl">
 			<h1>Company names</h1>
 			<?php self::show_flash(); ?>
-			<p>Every company spelling used in the student lists, and the company it is counted as in the charts. Spellings that differ only in capitals, spaces or brackets (TCS(D) and TCS (D)) are already treated as the same. Clear the company box to forget a match.</p>
+			<p>Every company spelling used in the student lists and summary numbers, and the company it is counted as in the charts (for example, merge “COGNIZANT TECHNOLOGY SOLUTION INDIA PVT” into Cognizant so the trend chart’s “By company” view follows one company across years). Spellings that differ only in capitals, spaces or brackets (TCS(D) and TCS (D)) are already treated as the same. Clear the company box to forget a match.</p>
 			<?php self::form_start( 'save_names' ); ?>
 			<table class="widefat striped cpl-names">
-				<thead><tr><th>Spelling</th><th>Used in</th><th class="num">Rows</th><th>Counts as company</th></tr></thead>
+				<thead><tr><th>Spelling</th><th>Used in</th><th class="num">Offers</th><th>Counts as company</th></tr></thead>
 				<tbody>
 				<?php foreach ( $spellings as $s ) :
 					$years = array_keys( $s['years'] );
